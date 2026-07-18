@@ -6,7 +6,7 @@ O produto e organizado como um monorepo pnpm. O frontend e o backend continuam s
 
 ## Estado atual
 
-O primeiro incremento contempla:
+O estado atual contempla:
 
 - estrutura inicial do monorepo;
 - API Express com TypeScript;
@@ -18,8 +18,14 @@ O primeiro incremento contempla:
 - frontend minimo com tela de login;
 - testes automatizados da autenticacao;
 - documentacao OpenAPI das rotas implementadas.
+- CRUD backend de projetos;
+- configuracoes de preco WEBSITE no banco;
+- motor de precificacao WEBSITE independente de Express;
+- orcamentos `Budget` versionados com itens `BudgetItem` congelados;
+- recálculo e finalizacao controlados para rascunhos;
+- testes unitarios e integrados do fluxo financeiro.
 
-Projetos e orcamentos ainda nao estao implementados. O nome de dominio definido para orcamento e `Budget`, e nao `Quote`.
+As telas de projetos e orcamentos ainda nao estao implementadas. A API deste ciclo precifica apenas projetos `WEBSITE`.
 
 ## Estrutura
 
@@ -62,7 +68,7 @@ pnpm db:migrate:deploy
 pnpm db:seed
 ```
 
-O seed exige `SEED_ADMIN_NAME`, `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD`. Ele e idempotente para o e-mail informado.
+O seed exige `SEED_ADMIN_NAME`, `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD`. Ele e idempotente para o e-mail informado e para as 23 configuracoes de preco WEBSITE.
 
 ## Desenvolvimento
 
@@ -96,7 +102,7 @@ pnpm typecheck
 pnpm build
 ```
 
-O build do frontend nao depende do banco de dados. Os testes atuais da camada HTTP usam um Prisma isolado por mock e nao alteram um banco real.
+O build do frontend nao depende do banco de dados. A autenticacao usa Prisma isolado por mock e o fluxo de orcamentos usa `mjm_orcamentos_test`, separado do banco de desenvolvimento.
 
 ## Autenticacao
 
@@ -125,6 +131,8 @@ A especificacao das rotas implementadas esta em `apps/api/openapi.yaml`.
 - frontend React e backend Express separados;
 - apenas contratos estaveis podem entrar em `packages/shared`;
 - JWT sem tabela de sessao no MVP;
-- futuros valores monetarios usarao Decimal, com arredondamento explicito no backend;
-- futuros orcamentos serao chamados `Budget` e seus itens `BudgetItem`;
+- valores monetarios usam Decimal, com arredondamento `ROUND_HALF_UP` explicito no backend;
+- orcamentos sao chamados `Budget` e seus itens `BudgetItem`;
+- valores da API financeira sao serializados como strings decimais;
+- alteracoes de preco nao modificam itens ja persistidos;
 - nenhuma credencial real e versionada.

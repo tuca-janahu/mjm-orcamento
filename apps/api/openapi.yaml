@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: MJM Orcamentos API
   version: 0.1.0
-  description: API interna. Neste incremento, apenas autenticacao esta implementada.
+  description: API interna de projetos e orcamentos. A precificacao completa atual atende apenas WEBSITE.
 servers:
   - url: http://localhost:3001
 paths:
@@ -55,6 +55,104 @@ paths:
                 $ref: '#/components/schemas/AuthResponse'
         '401':
           $ref: '#/components/responses/Unauthenticated'
+  /projects:
+    get:
+      summary: Listar projetos
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: Lista de projetos. }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    post:
+      summary: Criar projeto
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateProjectInput' }
+      responses:
+        '201': { description: Projeto criado. }
+        '400': { $ref: '#/components/responses/ValidationError' }
+  /projects/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      summary: Consultar projeto
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: Projeto encontrado. }
+        '404': { description: Projeto nao encontrado. }
+    patch:
+      summary: Editar projeto
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: Projeto atualizado. }
+    delete:
+      summary: Excluir projeto sem orcamentos
+      security: [{ cookieAuth: [] }]
+      responses:
+        '204': { description: Projeto excluido. }
+        '409': { description: Projetos com orcamentos nao podem ser excluidos. }
+  /projects/{projectId}/budgets:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Listar versoes de orcamento do projeto
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: Lista de orcamentos. }
+    post:
+      summary: Criar nova versao de orcamento WEBSITE
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateBudgetInput' }
+      responses:
+        '201': { description: Orcamento calculado e persistido com seus itens. }
+        '422': { description: Tipo de aplicacao ainda sem precificacao. }
+  /budgets/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      summary: Consultar orcamento e itens congelados
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: Orcamento encontrado. }
+    patch:
+      summary: Editar e recalcular um rascunho
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: Rascunho atualizado. }
+        '409': { description: Orcamento nao editavel. }
+  /budgets/{id}/recalculate:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      summary: Recalcular um rascunho com os precos ativos
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: Rascunho recalculado. }
+        '409': { description: Orcamento nao editavel. }
+  /budgets/{id}/finalize:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      summary: Recalcular e finalizar um orcamento
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: Orcamento finalizado e congelado. }
+        '409': { description: Orcamento nao editavel. }
+  /pricing-configs:
+    get:
+      summary: Listar configuracoes de preco ativas
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: Configuracoes ativas; valores decimais sao strings. }
 components:
   securitySchemes:
     cookieAuth:
@@ -62,6 +160,47 @@ components:
       in: cookie
       name: mjm_auth
   schemas:
+    CreateProjectInput:
+      type: object
+      required: [name, applicationType]
+      properties:
+        name: { type: string, maxLength: 160 }
+        clientName: { type: string, maxLength: 160 }
+        description: { type: string, maxLength: 2000 }
+        applicationType:
+          type: string
+          enum: [WEBSITE, LANDING_PAGE, ECOMMERCE, PLATAFORMA_WEB, APLICATIVO_MOBILE, SISTEMA_INTERNO, AUTOMACAO, OUTRO]
+        status:
+          type: string
+          enum: [PROSPECCAO, PREPARACAO, EM_EXECUCAO, CONCLUIDO, CANCELADO]
+          default: PROSPECCAO
+        notes: { type: string, maxLength: 4000 }
+    WebsiteBudgetInput:
+      type: object
+      required: [websiteType, numberOfPages, designType, developmentType, hasAdminPanel, integrationCount, hasPaymentSystem, hasBlog, hasBasicSeo, hasDomain, hasHosting, complexity, urgency, requiresMonthlyMaintenance, discountPercentage]
+      properties:
+        websiteType: { type: string, enum: [LANDING_PAGE, INSTITUCIONAL, BLOG, ECOMMERCE, PLATAFORMA] }
+        numberOfPages: { type: integer, minimum: 1 }
+        designType: { type: string, enum: [TEMPLATE, PERSONALIZADO] }
+        developmentType: { type: string, enum: [FRONTEND, FULLSTACK] }
+        hasAdminPanel: { type: boolean }
+        integrationCount: { type: integer, minimum: 0 }
+        hasPaymentSystem: { type: boolean }
+        hasBlog: { type: boolean }
+        hasBasicSeo: { type: boolean }
+        hasDomain: { type: boolean }
+        hasHosting: { type: boolean }
+        complexity: { type: string, enum: [SIMPLES, MEDIO, COMPLEXO] }
+        urgency: { type: string, enum: [NORMAL, PRIORIDADE, EXPRESSO] }
+        requiresMonthlyMaintenance: { type: boolean }
+        discountPercentage: { type: number, minimum: 0, maximum: 100 }
+        estimatedDeadlineDays: { type: integer, minimum: 1 }
+    CreateBudgetInput:
+      type: object
+      required: [inputData]
+      properties:
+        inputData: { $ref: '#/components/schemas/WebsiteBudgetInput' }
+        notes: { type: string, maxLength: 4000 }
     LoginInput:
       type: object
       additionalProperties: false
@@ -130,3 +269,9 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
