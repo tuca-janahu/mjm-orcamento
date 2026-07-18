@@ -1,0 +1,38 @@
+{
+  "name": "mjm-orcamento",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.13.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @mjm/api --filter @mjm/web dev",
+    "dev:web": "pnpm --filter @mjm/web dev",
+    "dev:api": "pnpm --filter @mjm/api dev",
+    "build": "pnpm -r --if-present build",
+    "test": "pnpm -r --if-present test",
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "db:generate": "pnpm --filter @mjm/api db:generate",
+    "db:migrate": "pnpm --filter @mjm/api db:migrate",
+    "db:migrate:deploy": "pnpm --filter @mjm/api db:migrate:deploy",
+    "db:seed": "pnpm --filter @mjm/api db:seed"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.31.0",
+    "eslint": "^9.31.0",
+    "globals": "^16.3.0",
+    "typescript-eslint": "^8.38.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "argon2",
+      "esbuild",
+      "prisma"
+    ]
+  }
+}

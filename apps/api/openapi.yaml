@@ -1,0 +1,132 @@
+openapi: 3.1.0
+info:
+  title: MJM Orcamentos API
+  version: 0.1.0
+  description: API interna. Neste incremento, apenas autenticacao esta implementada.
+servers:
+  - url: http://localhost:3001
+paths:
+  /auth/login:
+    post:
+      summary: Autenticar usuario
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginInput'
+      responses:
+        '200':
+          description: Usuario autenticado; o JWT e enviado em cookie HttpOnly.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/InvalidCredentials'
+        '429':
+          description: Limite de tentativas excedido.
+  /auth/logout:
+    post:
+      summary: Remover o cookie de autenticacao
+      operationId: logout
+      responses:
+        '204':
+          description: Cookie removido.
+  /auth/me:
+    get:
+      summary: Consultar usuario autenticado
+      operationId: getAuthenticatedUser
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Usuario autenticado e ativo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: mjm_auth
+  schemas:
+    LoginInput:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 1
+          maxLength: 200
+    User:
+      type: object
+      additionalProperties: false
+      required: [id, name, email, role, active]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [ADMIN, USER]
+        active:
+          type: boolean
+    AuthResponse:
+      type: object
+      required: [user]
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+  responses:
+    ValidationError:
+      description: Dados de entrada invalidos.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InvalidCredentials:
+      description: E-mail ou senha invalidos.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthenticated:
+      description: Autenticacao ausente ou invalida.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

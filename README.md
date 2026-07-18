@@ -1,0 +1,130 @@
+# MJM Orcamentos
+
+Aplicacao web interna para criacao e gerenciamento de orcamentos de servicos de software.
+
+O produto e organizado como um monorepo pnpm. O frontend e o backend continuam sendo aplicacoes independentes, e o backend e a fonte de verdade das regras de negocio e dos futuros calculos financeiros.
+
+## Estado atual
+
+O primeiro incremento contempla:
+
+- estrutura inicial do monorepo;
+- API Express com TypeScript;
+- PostgreSQL e Prisma;
+- entidade `User`;
+- autenticacao com JWT em cookie HttpOnly;
+- seed de um administrador;
+- rotas `POST /auth/login`, `POST /auth/logout` e `GET /auth/me`;
+- frontend minimo com tela de login;
+- testes automatizados da autenticacao;
+- documentacao OpenAPI das rotas implementadas.
+
+Projetos e orcamentos ainda nao estao implementados. O nome de dominio definido para orcamento e `Budget`, e nao `Quote`.
+
+## Estrutura
+
+```text
+apps/
+  api/       API, regras de negocio, Prisma e OpenAPI
+  web/       aplicacao React
+packages/
+  shared/    contratos pequenos compartilhados
+```
+
+## Pre-requisitos
+
+- Node.js 22 ou superior
+- pnpm 10
+- Docker com Docker Compose
+
+## Instalacao
+
+```bash
+pnpm install
+Copy-Item .env.example .env
+```
+
+Preencha todas as variaveis obrigatorias do `.env`. Nao use as credenciais do exemplo em ambientes reais.
+
+## Banco de dados
+
+Inicie o PostgreSQL a partir da raiz:
+
+```bash
+docker compose up -d postgres
+```
+
+Gere o Prisma Client, execute as migrations e o seed:
+
+```bash
+pnpm db:generate
+pnpm db:migrate:deploy
+pnpm db:seed
+```
+
+O seed exige `SEED_ADMIN_NAME`, `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD`. Ele e idempotente para o e-mail informado.
+
+## Desenvolvimento
+
+```bash
+pnpm dev
+```
+
+Aplicacoes isoladas:
+
+```bash
+pnpm dev:api
+pnpm dev:web
+```
+
+- API: `http://localhost:3001`
+- Web: `http://localhost:5173`
+- Healthcheck: `GET http://localhost:3001/health`
+
+O backend tambem pode ser iniciado com Docker:
+
+```bash
+docker compose up --build api
+```
+
+## Qualidade
+
+```bash
+pnpm test
+pnpm lint
+pnpm typecheck
+pnpm build
+```
+
+O build do frontend nao depende do banco de dados. Os testes atuais da camada HTTP usam um Prisma isolado por mock e nao alteram um banco real.
+
+## Autenticacao
+
+A API usa um JWT assinado, armazenado em cookie HttpOnly. O token contem somente o identificador do usuario e sua expiracao. Em cada rota privada, a API valida o token e consulta o usuario para confirmar que ele continua ativo.
+
+O logout remove o cookie no navegador. Como a autenticacao e stateless, nao existe revogacao individual antecipada: um token copiado permanece valido ate expirar. Por isso, a duracao e configuravel por `JWT_EXPIRES_IN_SECONDS`.
+
+Protecoes iniciais:
+
+- Argon2id para senhas;
+- cookie HttpOnly, SameSite e Secure configuravel;
+- CORS com origem explicita;
+- validacao de origem em operacoes mutaveis;
+- Helmet;
+- rate limit no login;
+- mensagens de credenciais uniformes;
+- respostas sem `passwordHash`.
+
+## OpenAPI
+
+A especificacao das rotas implementadas esta em `apps/api/openapi.yaml`.
+
+## Principais decisoes
+
+- monorepo apenas com pnpm workspaces, sem Nx ou Turborepo;
+- frontend React e backend Express separados;
+- apenas contratos estaveis podem entrar em `packages/shared`;
+- JWT sem tabela de sessao no MVP;
+- futuros valores monetarios usarao Decimal, com arredondamento explicito no backend;
+- futuros orcamentos serao chamados `Budget` e seus itens `BudgetItem`;
+- nenhuma credencial real e versionada.
