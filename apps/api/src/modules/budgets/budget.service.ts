@@ -70,9 +70,14 @@ function calculationData(input: WebsiteBudgetInput, result: PricingResult) {
   };
 }
 
-async function requireWebsiteProject(projectId: string) {
+async function requireProject(projectId: string) {
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   if (project === null) throw new AppError(404, 'PROJECT_NOT_FOUND', 'Projeto nao encontrado');
+  return project;
+}
+
+async function requireWebsiteProject(projectId: string) {
+  const project = await requireProject(projectId);
   if (project.applicationType !== 'WEBSITE') {
     throw new AppError(422, 'PRICING_NOT_SUPPORTED', 'Apenas projetos WEBSITE possuem precificacao neste ciclo');
   }
@@ -80,7 +85,7 @@ async function requireWebsiteProject(projectId: string) {
 }
 
 export async function listBudgets(projectId: string) {
-  await requireWebsiteProject(projectId);
+  await requireProject(projectId);
   const budgets = await prisma.budget.findMany({
     where: { projectId },
     include: budgetInclude,

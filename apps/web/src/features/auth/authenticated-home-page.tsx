@@ -1,65 +1,35 @@
-import type { AuthUser } from '@mjm/shared';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router';
-import { BrandMark } from '../../components/brand-mark';
+import { Link, useOutletContext } from 'react-router';
 import { api } from '../../lib/api';
+import type { AuthenticatedOutletContext, BudgetDto, ProjectSummary } from '../../lib/api-types';
+import { formatCurrency, formatDate } from '../../lib/format';
 
 export function AuthenticatedHomePage() {
-  const navigate = useNavigate();
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const { user } = useOutletContext<AuthenticatedOutletContext>();
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [budgets, setBudgets] = useState<BudgetDto[]>([]);
 
   useEffect(() => {
-    let active = true;
+    void api.get<{ projects: ProjectSummary[] }>('/projects').then(async ({ data }) => {
+      setProjects(data.projects);
+      const responses = await Promise.all(
+        data.projects.map((project) => api.get<{ budgets: BudgetDto[] }>(`/projects/${project.id}/budgets`))
+      );
+      setBudgets(
+        responses
+          .flatMap((response) => response.data.budgets)
+          .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+      );
+    }).catch(() => {
+      setProjects([]);
+      setBudgets([]);
+    });
+  }, []);
 
-    void api
-      .get<{ user: AuthUser }>('/auth/me')
-      .then(({ data }) => {
-        if (active) setUser(data.user);
-      })
-      .catch(() => {
-        if (active) void navigate('/login', { replace: true });
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [navigate]);
-
-  async function logout(): Promise<void> {
-    await api.post('/auth/logout');
-    void navigate('/login', { replace: true });
-  }
-
-  if (user === null) {
-    return (
-      <main className="loading-screen">
-        <BrandMark />
-        <span className="loading-line" />
-        <p>Validando acesso</p>
-      </main>
-    );
-  }
+  const draftCount = budgets.filter((budget) => budget.status === 'RASCUNHO').length;
 
   return (
-    <main className="app-shell">
-      <header className="app-header">
-        <BrandMark compact />
-        <nav className="main-navigation" aria-label="Navegação principal">
-          <span className="active-navigation-item">Visão geral</span>
-          <span>Orçamentos</span>
-          <span>Projetos</span>
-        </nav>
-        <div className="header-actions">
-          <div className="user-chip">
-            <span className="user-status" />
-            <span>{user.name}</span>
-          </div>
-          <button className="text-action" type="button" onClick={() => void logout()}>
-            Sair
-          </button>
-        </div>
-      </header>
-
+    <div className="page-content">
       <section className="welcome-section">
         <div className="welcome-copy">
           <p className="section-index">Painel</p>
@@ -72,17 +42,17 @@ export function AuthenticatedHomePage() {
       <section className="summary-grid" aria-label="Resumo">
         <article className="summary-card">
           <span>Orçamentos</span>
-          <strong>0</strong>
+          <strong>{budgets.length}</strong>
           <small>Total cadastrado</small>
         </article>
         <article className="summary-card">
           <span>Projetos</span>
-          <strong>0</strong>
+          <strong>{projects.length}</strong>
           <small>Total cadastrado</small>
         </article>
         <article className="summary-card">
           <span>Em elaboração</span>
-          <strong>0</strong>
+          <strong>{draftCount}</strong>
           <small>Orçamentos em rascunho</small>
         </article>
       </section>
@@ -93,19 +63,23 @@ export function AuthenticatedHomePage() {
             <p className="section-index">Atividade recente</p>
             <h2>Orçamentos</h2>
           </div>
-          <span className="module-status">Módulo ainda não implementado</span>
+          <Link className="secondary-action" to="/projects">Ver projetos</Link>
         </header>
-        <div className="empty-content">
-          <span className="empty-content-icon" aria-hidden="true">＋</span>
-          <h3>Nenhum orçamento cadastrado</h3>
-          <p>Os orçamentos criados serão listados nesta área.</p>
-        </div>
+        {budgets.length === 0 ? (
+          <div className="empty-content">
+            <span className="empty-content-icon" aria-hidden="true">→</span>
+            <h3>Nenhum orçamento cadastrado</h3>
+            <p>Crie um projeto para começar um novo orçamento.</p>
+          </div>
+        ) : budgets.slice(0, 5).map((budget) => (
+          <Link className="budget-row" to={`/budgets/${budget.id}`} key={budget.id}>
+            <div><span className="version-mark">V{budget.versionNumber}</span><span><strong>{budget.project.name}</strong><small>Atualizado em {formatDate(budget.updatedAt)}</small></span></div>
+            <span className={`status-tag status-${budget.status.toLowerCase()}`}>{budget.status}</span>
+            <strong>{formatCurrency(budget.finalTotal)}</strong>
+            <span aria-hidden="true">→</span>
+          </Link>
+        ))}
       </section>
-
-      <footer className="app-footer">
-        <span>MJM Group</span>
-        <span>Ferramenta de uso interno</span>
-      </footer>
-    </main>
+    </div>
   );
 }

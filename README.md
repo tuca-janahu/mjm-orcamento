@@ -15,7 +15,7 @@ O estado atual contempla:
 - autenticacao com JWT em cookie HttpOnly;
 - seed de um administrador;
 - rotas `POST /auth/login`, `POST /auth/logout` e `GET /auth/me`;
-- frontend minimo com tela de login;
+- frontend com login, painel, projetos e fluxo de orcamentos WEBSITE;
 - testes automatizados da autenticacao;
 - documentacao OpenAPI das rotas implementadas.
 - CRUD backend de projetos;
@@ -25,7 +25,7 @@ O estado atual contempla:
 - recálculo e finalizacao controlados para rascunhos;
 - testes unitarios e integrados do fluxo financeiro.
 
-As telas de projetos e orcamentos ainda nao estao implementadas. A API deste ciclo precifica apenas projetos `WEBSITE`.
+O frontend permite criar e acompanhar projetos, criar novas versoes de orcamento WEBSITE, editar e recalcular rascunhos, visualizar itens e finalizar o orçamento. A precificacao completa deste ciclo atende apenas projetos `WEBSITE`.
 
 ## Estrutura
 
