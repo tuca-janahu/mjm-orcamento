@@ -14,7 +14,6 @@ enum UserRole {
 
 enum ApplicationType {
   WEBSITE
-  LANDING_PAGE
   ECOMMERCE
   PLATAFORMA_WEB
   APLICATIVO_MOBILE

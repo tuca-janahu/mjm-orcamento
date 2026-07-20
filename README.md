@@ -22,17 +22,17 @@ O estado atual contempla:
 - configuracoes de preco WEBSITE no banco;
 - motor de precificacao WEBSITE independente de Express;
 - orcamentos `Budget` versionados com itens `BudgetItem` congelados;
-- recálculo e finalizacao controlados para rascunhos;
+- recalculo explicito e finalizacao controlada para rascunhos;
 - testes unitarios e integrados do fluxo financeiro.
 
-O frontend permite criar e acompanhar projetos, criar novas versoes de orcamento WEBSITE, editar e recalcular rascunhos, visualizar itens e finalizar o orçamento. A precificacao completa deste ciclo atende apenas projetos `WEBSITE`.
+O frontend permite criar e acompanhar projetos, criar novas versoes de orcamento WEBSITE, editar e recalcular rascunhos, visualizar itens e finalizar o orcamento. A precificacao completa deste ciclo atende apenas projetos `WEBSITE`, nas categorias landing page, institucional e portal de conteudo. E-commerce e plataforma web permanecem como familias separadas, ainda sem calculo automatico.
 
 ## Estrutura
 
 ```text
 apps/
   api/       API, regras de negocio, Prisma e OpenAPI
-  web/       aplicacao React
+  web/       aplicacao React com Tailwind CSS
 packages/
   shared/    contratos pequenos compartilhados
 ```
@@ -68,7 +68,9 @@ pnpm db:migrate:deploy
 pnpm db:seed
 ```
 
-O seed exige `SEED_ADMIN_NAME`, `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD`. Ele e idempotente para o e-mail informado e para as 23 configuracoes de preco WEBSITE.
+O seed exige `SEED_ADMIN_NAME`, `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD`. Ele e idempotente para o e-mail informado e para as configuracoes de preco WEBSITE. Configuracoes ja existentes preservam o valor ajustado no banco; o seed atualiza apenas seus dados descritivos e estado ativo.
+
+O arquivo `apps/api/prisma.config.ts` carrega o `.env` da raiz para que os comandos Prisma possam ser executados pelos scripts do monorepo sem duplicar variaveis dentro de `apps/api`.
 
 ## Desenvolvimento
 
@@ -128,11 +130,15 @@ A especificacao das rotas implementadas esta em `apps/api/openapi.yaml`.
 ## Principais decisoes
 
 - monorepo apenas com pnpm workspaces, sem Nx ou Turborepo;
-- frontend React e backend Express separados;
+- frontend React com Tailwind CSS e backend Express separados;
 - apenas contratos estaveis podem entrar em `packages/shared`;
 - JWT sem tabela de sessao no MVP;
 - valores monetarios usam Decimal, com arredondamento `ROUND_HALF_UP` explicito no backend;
 - orcamentos sao chamados `Budget` e seus itens `BudgetItem`;
 - valores da API financeira sao serializados como strings decimais;
 - alteracoes de preco nao modificam itens ja persistidos;
+- complexidade, urgencia e desconto incidem somente sobre servicos, nao sobre infraestrutura ou recorrencias;
+- hospedagem, dominio e manutencao possuem escopos e cobrancas separados;
+- finalizar um rascunho preserva o calculo existente; somente uma acao explicita de recalculo aplica a tabela de precos atual;
+- o contrato de campos WEBSITE experimental anterior foi substituido diretamente e nao possui camada `V1`/`V2` de compatibilidade; as versoes de negociacao de um orcamento continuam sendo historicos independentes;
 - nenhuma credencial real e versionada.

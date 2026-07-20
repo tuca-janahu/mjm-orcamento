@@ -11,6 +11,7 @@ import { api } from '../../lib/api';
 import type { ProjectSummary } from '../../lib/api-types';
 import { labelFromEnum } from '../../lib/format';
 import type { z } from 'zod';
+import { ui } from '../../lib/ui';
 
 type ProjectFormValues = z.input<typeof createProjectInputSchema>;
 interface ApiErrorBody { error?: { message?: string } }
@@ -34,23 +35,23 @@ export function ProjectFormPage() {
   });
 
   return (
-    <div className="page-content narrow-page">
-      <header className="page-heading">
-        <div><p className="section-index">Projetos / Novo</p><h1>Novo projeto</h1><p>Cadastre o contexto comercial antes de criar o orçamento.</p></div>
+    <div className={ui.narrowPage}>
+      <header className={ui.pageHeading}>
+        <div><p className={ui.eyebrow}>Projetos / Novo</p><h1 className={ui.pageTitle}>Novo projeto</h1><p className={ui.subtitle}>Cadastre o contexto comercial antes de criar o orçamento.</p></div>
       </header>
-      <form className="entity-form" onSubmit={submit} noValidate>
-        <section className="form-section">
-          <div className="form-section-heading"><span>01</span><div><h2>Identificação</h2><p>Informações gerais do projeto e do cliente.</p></div></div>
-          <div className="form-grid">
-            <label className="field field-wide"><span>Nome do projeto</span><input {...register('name')} />{errors.name && <small>{errors.name.message}</small>}</label>
-            <label className="field"><span>Cliente</span><input {...register('clientName')} /></label>
-            <label className="field"><span>Tipo de aplicação</span><select {...register('applicationType')}>{applicationTypes.map((type) => <option value={type} key={type}>{labelFromEnum(type)}</option>)}</select></label>
-            <label className="field field-wide"><span>Descrição</span><textarea rows={4} {...register('description')} /></label>
-            <label className="field field-wide"><span>Observações</span><textarea rows={3} {...register('notes')} /></label>
+      <form className={ui.form} onSubmit={submit} noValidate>
+        <section className={ui.formSection}>
+          <div className={ui.formSectionHeading}><span className="text-[0.625rem] font-bold text-zinc-400">01</span><div><h2 className="m-0 mb-2 text-sm font-semibold">Identificação</h2><p className="m-0 text-xs leading-relaxed text-zinc-500">Informações gerais do projeto e do cliente.</p></div></div>
+          <div className={ui.formGrid}>
+            <label className={ui.fieldWide}><span>Nome do projeto</span><input className={ui.input} {...register('name')} />{errors.name && <small className={ui.fieldError}>{errors.name.message}</small>}</label>
+            <label className={ui.field}><span>Cliente</span><input className={ui.input} {...register('clientName')} /></label>
+            <label className={ui.field}><span>Tipo de aplicação</span><select className={ui.input} {...register('applicationType')}>{applicationTypes.map((type) => <option value={type} key={type}>{labelFromEnum(type)}</option>)}</select></label>
+            <label className={ui.fieldWide}><span>Descrição</span><textarea className={ui.textarea} rows={4} {...register('description')} /></label>
+            <label className={ui.fieldWide}><span>Observações</span><textarea className={ui.textarea} rows={3} {...register('notes')} /></label>
           </div>
         </section>
-        {serverError && <div className="alert">{serverError}</div>}
-        <div className="form-actions"><Link className="secondary-action" to="/projects">Cancelar</Link><button className="primary-action compact-action" disabled={isSubmitting} type="submit">{isSubmitting ? 'Salvando...' : 'Criar projeto'} <span>→</span></button></div>
+        {serverError && <div className={ui.error}>{serverError}</div>}
+        <div className={ui.formActions}><Link className={ui.secondaryAction} to="/projects">Cancelar</Link><button className={`${ui.primaryAction} min-w-48`} disabled={isSubmitting} type="submit">{isSubmitting ? 'Salvando...' : 'Criar projeto'} <span>→</span></button></div>
       </form>
     </div>
   );

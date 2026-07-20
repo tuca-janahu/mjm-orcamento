@@ -1,6 +1,5 @@
 export const applicationTypes = [
   'WEBSITE',
-  'LANDING_PAGE',
   'ECOMMERCE',
   'PLATAFORMA_WEB',
   'APLICATIVO_MOBILE',
@@ -29,4 +28,3 @@ export const budgetStatuses = [
 export type ApplicationType = (typeof applicationTypes)[number];
 export type ProjectStatus = (typeof projectStatuses)[number];
 export type BudgetStatus = (typeof budgetStatuses)[number];
-

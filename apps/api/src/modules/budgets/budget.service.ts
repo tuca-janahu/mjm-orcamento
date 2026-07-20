@@ -142,7 +142,7 @@ async function requireDraftBudget(id: string) {
   return budget;
 }
 
-async function persistRecalculation(id: string, inputData: WebsiteBudgetInput, notes?: string, finalize = false) {
+async function persistRecalculation(id: string, inputData: WebsiteBudgetInput, notes?: string) {
   const result = await calculate(inputData);
   const budget = await prisma.$transaction(async (transaction) => {
     await transaction.budgetItem.deleteMany({ where: { budgetId: id } });
@@ -150,8 +150,7 @@ async function persistRecalculation(id: string, inputData: WebsiteBudgetInput, n
       where: { id },
       data: {
         ...calculationData(inputData, result),
-        ...(notes === undefined ? {} : { notes }),
-        ...(finalize ? { status: BudgetStatus.FINALIZADO } : {})
+        ...(notes === undefined ? {} : { notes })
       },
       include: budgetInclude
     });
@@ -164,8 +163,16 @@ export async function updateBudget(
   input: { inputData?: WebsiteBudgetInput | undefined; notes?: string | undefined }
 ) {
   const current = await requireDraftBudget(id);
-  const inputData = input.inputData ?? websiteBudgetInputSchema.parse(current.inputData);
-  return persistRecalculation(id, inputData, input.notes);
+  if (input.inputData !== undefined) {
+    return persistRecalculation(id, input.inputData, input.notes);
+  }
+
+  const budget = await prisma.budget.update({
+    where: { id: current.id },
+    data: input.notes === undefined ? {} : { notes: input.notes },
+    include: budgetInclude
+  });
+  return serializeBudget(budget);
 }
 
 export async function recalculateBudget(id: string) {
@@ -175,5 +182,10 @@ export async function recalculateBudget(id: string) {
 
 export async function finalizeBudget(id: string) {
   const current = await requireDraftBudget(id);
-  return persistRecalculation(id, websiteBudgetInputSchema.parse(current.inputData), undefined, true);
+  const budget = await prisma.budget.update({
+    where: { id: current.id },
+    data: { status: BudgetStatus.FINALIZADO },
+    include: budgetInclude
+  });
+  return serializeBudget(budget);
 }

@@ -7,6 +7,5 @@
     "types": ["node", "vitest/globals"],
     "noEmit": true
   },
-  "include": ["src", "tests", "prisma", "vitest.config.ts"]
+  "include": ["src", "tests", "prisma", "prisma.config.ts", "vitest.config.ts"]
 }
-

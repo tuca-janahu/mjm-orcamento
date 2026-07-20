@@ -124,8 +124,13 @@ paths:
       responses:
         '200': { description: Orcamento encontrado. }
     patch:
-      summary: Editar e recalcular um rascunho
+      summary: Editar um rascunho; recalcular apenas quando inputData for informado
       security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateBudgetInput' }
       responses:
         '200': { description: Rascunho atualizado. }
         '409': { description: Orcamento nao editavel. }
@@ -142,10 +147,10 @@ paths:
     parameters:
       - $ref: '#/components/parameters/Id'
     post:
-      summary: Recalcular e finalizar um orcamento
+      summary: Finalizar um orcamento sem recalcular seus valores congelados
       security: [{ cookieAuth: [] }]
       responses:
-        '200': { description: Orcamento finalizado e congelado. }
+        '200': { description: Status alterado para FINALIZADO; escopo, itens e totais sao preservados. }
         '409': { description: Orcamento nao editavel. }
   /pricing-configs:
     get:
@@ -169,7 +174,7 @@ components:
         description: { type: string, maxLength: 2000 }
         applicationType:
           type: string
-          enum: [WEBSITE, LANDING_PAGE, ECOMMERCE, PLATAFORMA_WEB, APLICATIVO_MOBILE, SISTEMA_INTERNO, AUTOMACAO, OUTRO]
+          enum: [WEBSITE, ECOMMERCE, PLATAFORMA_WEB, APLICATIVO_MOBILE, SISTEMA_INTERNO, AUTOMACAO, OUTRO]
         status:
           type: string
           enum: [PROSPECCAO, PREPARACAO, EM_EXECUCAO, CONCLUIDO, CANCELADO]
@@ -177,27 +182,120 @@ components:
         notes: { type: string, maxLength: 4000 }
     WebsiteBudgetInput:
       type: object
-      required: [websiteType, numberOfPages, designType, developmentType, hasAdminPanel, integrationCount, hasPaymentSystem, hasBlog, hasBasicSeo, hasDomain, hasHosting, complexity, urgency, requiresMonthlyMaintenance, discountPercentage]
+      additionalProperties: false
+      required:
+        - websiteCategory
+        - sectionCount
+        - pageCount
+        - uniqueLayoutCount
+        - languageCount
+        - contentResponsibility
+        - contentMigrationCount
+        - designApproach
+        - contentManagement
+        - simpleFormCount
+        - advancedFormCount
+        - integrations
+        - additionalModules
+        - seoLevel
+        - domainService
+        - hostingPlan
+        - maintenancePlan
+        - complexityAdjustment
+        - discountPercentage
       properties:
-        websiteType: { type: string, enum: [LANDING_PAGE, INSTITUCIONAL, BLOG, ECOMMERCE, PLATAFORMA] }
-        numberOfPages: { type: integer, minimum: 1 }
-        designType: { type: string, enum: [TEMPLATE, PERSONALIZADO] }
-        developmentType: { type: string, enum: [FRONTEND, FULLSTACK] }
-        hasAdminPanel: { type: boolean }
-        integrationCount: { type: integer, minimum: 0 }
-        hasPaymentSystem: { type: boolean }
-        hasBlog: { type: boolean }
-        hasBasicSeo: { type: boolean }
-        hasDomain: { type: boolean }
-        hasHosting: { type: boolean }
-        complexity: { type: string, enum: [SIMPLES, MEDIO, COMPLEXO] }
-        urgency: { type: string, enum: [NORMAL, PRIORIDADE, EXPRESSO] }
-        requiresMonthlyMaintenance: { type: boolean }
-        discountPercentage: { type: number, minimum: 0, maximum: 100 }
-        estimatedDeadlineDays: { type: integer, minimum: 1 }
+        websiteCategory:
+          type: string
+          enum: [LANDING_PAGE, INSTITUCIONAL, PORTAL_CONTEUDO]
+        sectionCount:
+          type: integer
+          minimum: 1
+          description: Quantidade de secoes da landing page; ignorada nas demais categorias.
+        pageCount:
+          type: integer
+          minimum: 1
+          description: Quantidade total de paginas; ignorada para landing pages.
+        uniqueLayoutCount:
+          type: integer
+          minimum: 1
+          description: Quantidade de layouts distintos; ignorada para landing pages e limitada a pageCount nas demais categorias.
+        languageCount:
+          type: integer
+          minimum: 1
+          maximum: 10
+        contentResponsibility:
+          type: string
+          enum: [CLIENT_PROVIDES_READY, MJM_MIGRATES_EXISTING, MJM_PRODUCES_CONTENT]
+        contentMigrationCount:
+          type: integer
+          minimum: 0
+          description: Obrigatorio e maior que zero para MJM_MIGRATES_EXISTING; deve ser zero nos demais casos.
+        designApproach:
+          type: string
+          enum: [CLIENT_PROVIDED, TEMPLATE_CUSTOMIZATION, CUSTOM_DESIGN]
+        contentManagement:
+          type: string
+          enum: [NONE, STANDARD_CMS, CUSTOM_ADMIN]
+        simpleFormCount: { type: integer, minimum: 0 }
+        advancedFormCount: { type: integer, minimum: 0 }
+        integrations:
+          type: array
+          maxItems: 20
+          items: { $ref: '#/components/schemas/WebsiteIntegration' }
+        additionalModules:
+          type: array
+          uniqueItems: true
+          maxItems: 2
+          description: BLOG nao pode ser repetido pelo PORTAL_CONTEUDO e exige gerenciamento de conteudo.
+          items:
+            type: string
+            enum: [BLOG, SITE_SEARCH]
+        seoLevel:
+          type: string
+          enum: [TECHNICAL_BASELINE, ON_PAGE_SETUP, CONTENT_STRATEGY]
+        domainService:
+          type: string
+          enum: [CLIENT_MANAGED, NEW_REGISTRATION, TRANSFER, CONFIGURATION_ONLY]
+        hostingPlan:
+          type: string
+          enum: [CLIENT_MANAGED, MJM_STANDARD, MJM_MANAGED]
+        maintenancePlan:
+          type: string
+          enum: [NONE, ESSENTIAL, STANDARD, CUSTOM]
+        targetLaunchDate:
+          type: string
+          format: date
+          description: Data desejada de lancamento; 45 dias ou mais e normal, 21 a 44 e prioridade e ate 20 e expresso.
+        complexityAdjustment:
+          type: string
+          enum: [NONE, MODERATE, HIGH]
+        complexityReason:
+          type: string
+          maxLength: 500
+          description: Obrigatorio quando complexityAdjustment for MODERATE ou HIGH.
+        discountPercentage: { type: number, minimum: 0, maximum: 100, multipleOf: 0.01 }
+        discountReason:
+          type: string
+          maxLength: 500
+          description: Obrigatorio quando discountPercentage for maior que zero.
+    WebsiteIntegration:
+      type: object
+      additionalProperties: false
+      required: [name, complexity]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 120 }
+        complexity: { type: string, enum: [SIMPLE, STANDARD, COMPLEX] }
     CreateBudgetInput:
       type: object
+      additionalProperties: false
       required: [inputData]
+      properties:
+        inputData: { $ref: '#/components/schemas/WebsiteBudgetInput' }
+        notes: { type: string, maxLength: 4000 }
+    UpdateBudgetInput:
+      type: object
+      additionalProperties: false
+      minProperties: 1
       properties:
         inputData: { $ref: '#/components/schemas/WebsiteBudgetInput' }
         notes: { type: string, maxLength: 4000 }

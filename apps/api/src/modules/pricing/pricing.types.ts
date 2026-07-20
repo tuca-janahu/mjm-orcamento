@@ -7,6 +7,12 @@ export interface PricingConfigValue {
   value: Decimal;
 }
 
+export type WebsiteUrgencyLevel = 'NORMAL' | 'PRIORIDADE' | 'EXPRESSO';
+
+export interface WebsitePricingOptions {
+  referenceDate?: Date;
+}
+
 export interface CalculatedBudgetItem {
   code: string;
   name: string;
