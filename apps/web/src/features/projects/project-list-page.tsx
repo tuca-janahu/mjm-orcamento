@@ -1,3 +1,4 @@
+import { projectStatuses, type ProjectStatus } from "@mjm/shared";
 import axios from "axios";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
@@ -15,6 +16,9 @@ export function ProjectListPage() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedStatuses, setSelectedStatuses] = useState<ProjectStatus[]>(
+    () => [...projectStatuses],
+  );
   const [projectToDelete, setProjectToDelete] =
     useState<ProjectSummary | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -64,6 +68,32 @@ export function ProjectListPage() {
     setDeleteError(null);
   }
 
+  function toggleStatus(status: ProjectStatus): void {
+    setSelectedStatuses((currentStatuses) =>
+      currentStatuses.includes(status)
+        ? currentStatuses.filter((currentStatus) => currentStatus !== status)
+        : projectStatuses.filter(
+            (projectStatus) =>
+              projectStatus === status || currentStatuses.includes(projectStatus),
+          ),
+    );
+  }
+
+  const allStatusesSelected =
+    selectedStatuses.length === projectStatuses.length;
+
+  function toggleAllStatuses(): void {
+    setSelectedStatuses(allStatusesSelected ? [] : [...projectStatuses]);
+  }
+
+  const filteredProjects = projects.filter((project) =>
+    selectedStatuses.includes(project.status),
+  );
+
+  const resultLabel = `${filteredProjects.length} ${
+    filteredProjects.length === 1 ? "projeto" : "projetos"
+  }`;
+
   return (
     <div className={ui.pageContent}>
       <header className={ui.pageHeading}>
@@ -92,6 +122,65 @@ export function ProjectListPage() {
       )}
 
       <section className={ui.panel}>
+        <div className="border-b border-zinc-200 px-5 py-4">
+          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+            <div>
+              <p className="m-0 text-[0.625rem] font-bold tracking-[0.12em] text-zinc-500 uppercase">
+                Filtrar por estado
+              </p>
+              <p
+                className="mt-1.5 mb-0 text-xs text-zinc-600"
+                id="project-filter-summary"
+                aria-live="polite"
+              >
+                {loading
+                  ? "Carregando projetos..."
+                  : `${resultLabel} · ${selectedStatuses.length} de ${projectStatuses.length} estados selecionados`}
+              </p>
+            </div>
+            <button
+              className={ui.secondaryAction}
+              disabled={loading || projects.length === 0}
+              type="button"
+              onClick={toggleAllStatuses}
+            >
+              {allStatusesSelected
+                ? "Desselecionar todos"
+                : "Selecionar todos"}
+            </button>
+          </div>
+
+          <fieldset
+            className="mt-4 border-0 p-0"
+            disabled={loading || projects.length === 0}
+            aria-describedby="project-filter-summary"
+          >
+            <legend className="sr-only">Estados visíveis na listagem</legend>
+            <div className="grid grid-cols-1 border-t border-l border-zinc-200 sm:grid-cols-2 lg:grid-cols-5">
+              {projectStatuses.map((status) => (
+                <label
+                  className={`${ui.checkOption} ${
+                    loading
+                      ? "cursor-wait bg-zinc-50 text-zinc-400"
+                      : projects.length === 0
+                        ? "cursor-not-allowed bg-zinc-50 text-zinc-400"
+                        : ""
+                  }`}
+                  key={status}
+                >
+                  <input
+                    className="peer absolute h-px w-px opacity-0"
+                    type="checkbox"
+                    checked={selectedStatuses.includes(status)}
+                    onChange={() => toggleStatus(status)}
+                  />
+                  <span className={ui.checkMark} aria-hidden="true" />
+                  <span>{labelFromEnum(status)}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        </div>
         <div className="hidden min-h-10 grid-cols-[minmax(0,1fr)_3rem] items-stretch border-b border-zinc-200 bg-zinc-50 text-[0.5625rem] font-bold tracking-[0.12em] text-zinc-500 uppercase md:grid">
           <div className="grid grid-cols-[minmax(240px,1.7fr)_1fr_1fr_.7fr_.8fr] items-center gap-5 px-4.5">
             <span>Projeto</span>
@@ -105,7 +194,7 @@ export function ProjectListPage() {
           </span>
         </div>
         {loading && <div className={ui.loading}>Carregando projetos...</div>}
-        {!loading && projects.length === 0 && (
+        {!loading && error === null && projects.length === 0 && (
           <div className={ui.empty}>
             <span className={ui.emptyIcon}>＋</span>
             <h3 className="m-0 mb-2 text-sm font-semibold">
@@ -116,7 +205,34 @@ export function ProjectListPage() {
             </p>
           </div>
         )}
-        {projects.map((project) => (
+        {!loading &&
+          error === null &&
+          projects.length > 0 &&
+          filteredProjects.length === 0 && (
+            <div className={ui.empty}>
+              <span className={ui.emptyIcon} aria-hidden="true">
+                0
+              </span>
+              <h3 className="m-0 mb-2 text-sm font-semibold">
+                {selectedStatuses.length === 0
+                  ? "Nenhum estado selecionado"
+                  : "Nenhum projeto nos estados selecionados"}
+              </h3>
+              <p className="m-0 text-[0.8125rem] text-zinc-500">
+                {selectedStatuses.length === 0
+                  ? "Selecione ao menos um estado para visualizar projetos."
+                  : "Altere os estados selecionados para visualizar outros projetos."}
+              </p>
+              <button
+                className={`${ui.secondaryAction} mt-5`}
+                type="button"
+                onClick={() => setSelectedStatuses([...projectStatuses])}
+              >
+                Selecionar todos
+              </button>
+            </div>
+          )}
+        {filteredProjects.map((project) => (
           <div
             className="grid min-h-17 grid-cols-[minmax(0,1fr)_3rem] items-stretch border-b border-zinc-200 text-xs text-zinc-600 transition-colors last:border-b-0 hover:bg-zinc-50 hover:text-zinc-950"
             key={project.id}
