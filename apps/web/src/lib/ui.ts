@@ -22,7 +22,7 @@ export const ui = {
   field: 'grid content-start gap-2 text-[0.625rem] font-bold tracking-[0.1em] text-zinc-600 uppercase',
   fieldWide: 'grid content-start gap-2 text-[0.625rem] font-bold tracking-[0.1em] text-zinc-600 uppercase sm:col-span-2 xl:col-span-full',
   input: 'h-9.5 w-full border-0 border-b border-zinc-300 bg-transparent text-[0.8125rem] font-normal tracking-normal text-zinc-950 normal-case outline-none transition-colors focus:border-sky-500',
-  textarea: 'w-full resize-y border-0 border-b border-zinc-300 bg-transparent py-2 text-[0.8125rem] font-normal tracking-normal text-zinc-950 normal-case outline-none transition-colors focus:border-sky-500',
+  textarea: 'w-full resize-y border-0 border-b border-zinc-300 bg-transparent text-[0.8125rem] font-normal tracking-normal text-zinc-950 normal-case outline-none transition-colors focus:border-sky-500',
   fieldError: 'text-[0.625rem] font-medium tracking-normal text-red-600 normal-case',
   formActions: 'flex justify-end gap-2.5 py-2 pb-6',
   checkOption: 'relative flex min-h-13 cursor-pointer items-center gap-3 border-r border-b border-zinc-200 px-3.5 py-3 text-xs text-zinc-600 transition-colors hover:bg-zinc-50 hover:text-zinc-950',

@@ -3,6 +3,7 @@ import type {
   AuthUser,
   BudgetStatus,
   ProjectStatus,
+  WebPlatformBudgetInput,
   WebsiteBudgetInput
 } from '@mjm/shared';
 
@@ -33,12 +34,14 @@ export interface BudgetItemDto {
   displayOrder: number;
 }
 
-export interface BudgetDto {
+export type BudgetInputData = WebsiteBudgetInput | WebPlatformBudgetInput;
+
+export interface BudgetDto<TInputData extends BudgetInputData = BudgetInputData> {
   id: string;
   projectId: string;
   versionNumber: number;
   status: BudgetStatus;
-  inputData: WebsiteBudgetInput;
+  inputData: TInputData;
   subtotal: string;
   complexityMultiplier: string;
   urgencyMultiplier: string;
@@ -56,4 +59,3 @@ export interface BudgetDto {
 export interface AuthenticatedOutletContext {
   user: AuthUser;
 }
-

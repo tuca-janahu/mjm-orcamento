@@ -13,6 +13,12 @@ export interface WebsitePricingOptions {
   referenceDate?: Date;
 }
 
+export type WebPlatformUrgencyLevel = WebsiteUrgencyLevel;
+
+export interface WebPlatformPricingOptions {
+  referenceDate?: Date;
+}
+
 export interface CalculatedBudgetItem {
   code: string;
   name: string;

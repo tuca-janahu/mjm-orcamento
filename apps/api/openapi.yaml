@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: MJM Orcamentos API
   version: 0.1.0
-  description: API interna de projetos e orcamentos. A precificacao completa atual atende apenas WEBSITE.
+  description: API interna de projetos e orcamentos com precificacao completa para WEBSITE e PLATAFORMA_WEB.
 servers:
   - url: http://localhost:3001
 paths:
@@ -87,6 +87,7 @@ paths:
       security: [{ cookieAuth: [] }]
       responses:
         '200': { description: Projeto atualizado. }
+        '409': { description: O tipo da aplicacao nao pode mudar depois da criacao de orcamentos. }
     delete:
       summary: Excluir projeto sem orcamentos
       security: [{ cookieAuth: [] }]
@@ -105,7 +106,7 @@ paths:
       responses:
         '200': { description: Lista de orcamentos. }
     post:
-      summary: Criar nova versao de orcamento WEBSITE
+      summary: Criar nova versao de orcamento WEBSITE ou PLATAFORMA_WEB
       security: [{ cookieAuth: [] }]
       requestBody:
         required: true
@@ -114,6 +115,8 @@ paths:
             schema: { $ref: '#/components/schemas/CreateBudgetInput' }
       responses:
         '201': { description: Orcamento calculado e persistido com seus itens. }
+        '400': { description: Envelope ou campos do tipo de aplicacao invalidos. }
+        '409': { description: O tipo do projeto mudou durante a criacao ou a versao nao pode ser reservada. }
         '422': { description: Tipo de aplicacao ainda sem precificacao. }
   /budgets/{id}:
     parameters:
@@ -285,19 +288,152 @@ components:
       properties:
         name: { type: string, minLength: 2, maxLength: 120 }
         complexity: { type: string, enum: [SIMPLE, STANDARD, COMPLEX] }
+    WebPlatformScopedItem:
+      type: object
+      additionalProperties: false
+      required: [name, complexity]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 120 }
+        description: { type: string, maxLength: 1000 }
+        complexity: { type: string, enum: [SIMPLE, STANDARD, COMPLEX] }
+    WebPlatformBudgetInput:
+      type: object
+      additionalProperties: false
+      required:
+        - platformCategory
+        - accountStructure
+        - screenCount
+        - userRoleCount
+        - languageCount
+        - designApproach
+        - functionalModules
+        - adminBackoffice
+        - dashboardCount
+        - reportCount
+        - additionalAuthentication
+        - paymentFeatures
+        - notificationChannels
+        - fileHandling
+        - auditLevel
+        - integrations
+        - dataMigration
+        - dataMigrationSourceCount
+        - hostingPlan
+        - maintenancePlan
+        - complexityAdjustment
+        - discountPercentage
+      properties:
+        platformCategory:
+          type: string
+          enum: [CLIENT_PORTAL, SAAS, MARKETPLACE, MEMBERSHIP_PLATFORM, CUSTOM]
+        customCategoryDescription:
+          type: string
+          maxLength: 500
+          description: Obrigatoria quando platformCategory for CUSTOM.
+        accountStructure:
+          type: string
+          enum: [SINGLE_ORGANIZATION, MULTI_ORGANIZATION]
+        screenCount: { type: integer, minimum: 1, maximum: 200 }
+        userRoleCount:
+          type: integer
+          minimum: 1
+          maximum: 20
+          description: Marketplace exige ao menos dois perfis.
+        languageCount: { type: integer, minimum: 1, maximum: 10 }
+        designApproach:
+          type: string
+          enum: [CLIENT_PROVIDED, DESIGN_SYSTEM_ADAPTATION, CUSTOM_DESIGN]
+        functionalModules:
+          type: array
+          minItems: 1
+          maxItems: 30
+          description: Nomes devem ser unicos, desconsiderando caixa, espacos e acentos.
+          items: { $ref: '#/components/schemas/WebPlatformScopedItem' }
+        adminBackoffice:
+          type: string
+          enum: [NONE, STANDARD, CUSTOM]
+        dashboardCount: { type: integer, minimum: 0, maximum: 20 }
+        reportCount: { type: integer, minimum: 0, maximum: 50 }
+        additionalAuthentication:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum: [SOCIAL_LOGIN, MFA, SSO]
+        paymentFeatures:
+          type: array
+          uniqueItems: true
+          description: MARKETPLACE_SPLIT esta disponivel apenas para MARKETPLACE.
+          items:
+            type: string
+            enum: [ONE_TIME, SUBSCRIPTION, MARKETPLACE_SPLIT]
+        notificationChannels:
+          type: array
+          uniqueItems: true
+          description: Custos por consumo dos provedores nao fazem parte do calculo.
+          items:
+            type: string
+            enum: [IN_APP, EMAIL, WHATSAPP_SMS]
+        fileHandling:
+          type: string
+          enum: [NONE, BASIC_UPLOADS, DOCUMENT_WORKFLOW]
+        auditLevel:
+          type: string
+          enum: [NONE, BASIC, COMPLETE]
+        integrations:
+          type: array
+          maxItems: 20
+          description: Nomes devem ser unicos, desconsiderando caixa, espacos e acentos.
+          items: { $ref: '#/components/schemas/WebPlatformScopedItem' }
+        dataMigration:
+          type: string
+          enum: [NONE, STRUCTURED_IMPORT, LEGACY_MIGRATION]
+        dataMigrationSourceCount:
+          type: integer
+          minimum: 0
+          maximum: 20
+          description: Deve ser zero sem migracao e maior que zero nos demais casos.
+        hostingPlan:
+          type: string
+          enum: [CLIENT_MANAGED, MJM_STANDARD, MJM_MANAGED]
+        maintenancePlan:
+          type: string
+          enum: [NONE, ESSENTIAL, STANDARD, CUSTOM]
+        targetLaunchDate:
+          type: string
+          format: date
+          description: Data desejada de lancamento, nunca anterior ao dia UTC atual; 45 dias ou mais e normal, 21 a 44 e prioridade e ate 20 e expresso.
+        complexityAdjustment:
+          type: string
+          enum: [NONE, MODERATE, HIGH]
+        complexityReason:
+          type: string
+          maxLength: 500
+          description: Obrigatoria quando complexityAdjustment for MODERATE ou HIGH.
+        discountPercentage: { type: number, minimum: 0, maximum: 100, multipleOf: 0.01 }
+        discountReason:
+          type: string
+          maxLength: 500
+          description: Obrigatoria quando discountPercentage for maior que zero.
     CreateBudgetInput:
       type: object
       additionalProperties: false
       required: [inputData]
       properties:
-        inputData: { $ref: '#/components/schemas/WebsiteBudgetInput' }
+        inputData:
+          oneOf:
+            - $ref: '#/components/schemas/WebsiteBudgetInput'
+            - $ref: '#/components/schemas/WebPlatformBudgetInput'
         notes: { type: string, maxLength: 4000 }
     UpdateBudgetInput:
       type: object
       additionalProperties: false
       minProperties: 1
       properties:
-        inputData: { $ref: '#/components/schemas/WebsiteBudgetInput' }
+        inputData:
+          oneOf:
+            - $ref: '#/components/schemas/WebsiteBudgetInput'
+            - $ref: '#/components/schemas/WebPlatformBudgetInput'
         notes: { type: string, maxLength: 4000 }
     LoginInput:
       type: object

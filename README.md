@@ -2,7 +2,7 @@
 
 Aplicacao web interna para criacao e gerenciamento de orcamentos de servicos de software.
 
-O produto e organizado como um monorepo pnpm. O frontend e o backend continuam sendo aplicacoes independentes, e o backend e a fonte de verdade das regras de negocio e dos futuros calculos financeiros.
+O produto e organizado como um monorepo pnpm. O frontend e o backend continuam sendo aplicacoes independentes, e o backend e a fonte de verdade das regras de negocio e dos calculos financeiros.
 
 ## Estado atual
 
@@ -15,17 +15,17 @@ O estado atual contempla:
 - autenticacao com JWT em cookie HttpOnly;
 - seed de um administrador;
 - rotas `POST /auth/login`, `POST /auth/logout` e `GET /auth/me`;
-- frontend com login, painel, projetos e fluxo de orcamentos WEBSITE;
+- frontend com login, painel, projetos e fluxos de orcamento WEBSITE e PLATAFORMA_WEB;
 - testes automatizados da autenticacao;
 - documentacao OpenAPI das rotas implementadas.
 - CRUD backend de projetos;
-- configuracoes de preco WEBSITE no banco;
-- motor de precificacao WEBSITE independente de Express;
+- configuracoes de preco WEBSITE e PLATAFORMA_WEB no banco;
+- motores de precificacao WEBSITE e PLATAFORMA_WEB independentes de Express;
 - orcamentos `Budget` versionados com itens `BudgetItem` congelados;
 - recalculo explicito e finalizacao controlada para rascunhos;
 - testes unitarios e integrados do fluxo financeiro.
 
-O frontend permite criar e acompanhar projetos, criar novas versoes de orcamento WEBSITE, editar e recalcular rascunhos, visualizar itens e finalizar o orcamento. A precificacao completa deste ciclo atende apenas projetos `WEBSITE`, nas categorias landing page, institucional e portal de conteudo. E-commerce e plataforma web permanecem como familias separadas, ainda sem calculo automatico.
+O frontend permite criar e acompanhar projetos, criar novas versoes de orcamento, editar e recalcular rascunhos, visualizar itens e finalizar o orcamento. A precificacao automatica atende projetos `WEBSITE`, nas categorias landing page, institucional e portal de conteudo, e `PLATAFORMA_WEB`, nas categorias portal do cliente, SaaS, marketplace, plataforma de membros e personalizada. Os demais tipos continuam sem calculo automatico.
 
 ## Estrutura
 
@@ -68,7 +68,7 @@ pnpm db:migrate:deploy
 pnpm db:seed
 ```
 
-O seed exige `SEED_ADMIN_NAME`, `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD`. Ele e idempotente para o e-mail informado e para as configuracoes de preco WEBSITE. Configuracoes ja existentes preservam o valor ajustado no banco; o seed atualiza apenas seus dados descritivos e estado ativo.
+O seed exige `SEED_ADMIN_NAME`, `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD`. Ele e idempotente para o e-mail informado e para as configuracoes de preco WEBSITE e PLATAFORMA_WEB. Configuracoes ja existentes preservam o valor ajustado no banco; o seed atualiza apenas seus dados descritivos e estado ativo.
 
 O arquivo `apps/api/prisma.config.ts` carrega o `.env` da raiz para que os comandos Prisma possam ser executados pelos scripts do monorepo sem duplicar variaveis dentro de `apps/api`.
 
@@ -123,6 +123,12 @@ Protecoes iniciais:
 - mensagens de credenciais uniformes;
 - respostas sem `passwordHash`.
 
+## Precificacao suportada
+
+Cada tipo possui schema, configuracoes e motor proprios. O backend carrega o tipo do projeto antes de validar o JSON do orcamento e o confirma novamente na transacao de persistencia, impedindo que campos ou precos de WEBSITE sejam usados em PLATAFORMA_WEB e vice-versa.
+
+Em PLATAFORMA_WEB, o valor-base inclui a fundacao frontend/backend, persistencia, autenticacao por e-mail e senha, cinco telas, dois perfis e um idioma. O restante e detalhado por estrutura de contas, design, modulos funcionais, backoffice, dashboards, relatorios, autenticacao adicional, pagamentos, notificacoes, arquivos, auditoria, integracoes e migracao de dados. A data de lancamento nao pode estar antes do dia UTC atual. A implantacao da hospedagem e um item unico sem multiplicadores; hospedagem mensal e manutencao ficam separadas no total recorrente.
+
 ## OpenAPI
 
 A especificacao das rotas implementadas esta em `apps/api/openapi.yaml`.
@@ -139,6 +145,9 @@ A especificacao das rotas implementadas esta em `apps/api/openapi.yaml`.
 - alteracoes de preco nao modificam itens ja persistidos;
 - complexidade, urgencia e desconto incidem somente sobre servicos, nao sobre infraestrutura ou recorrencias;
 - hospedagem, dominio e manutencao possuem escopos e cobrancas separados;
+- custos de terceiros por consumo, como gateways, e-mail, WhatsApp, SMS e nuvem, nao sao incluidos automaticamente;
+- o tipo do projeto determina o schema e o motor de calculo; ele nao e repetido no JSON do orcamento;
+- o tipo do projeto nao pode ser alterado depois que o primeiro orcamento for criado;
 - finalizar um rascunho preserva o calculo existente; somente uma acao explicita de recalculo aplica a tabela de precos atual;
 - o contrato de campos WEBSITE experimental anterior foi substituido diretamente e nao possui camada `V1`/`V2` de compatibilidade; as versoes de negociacao de um orcamento continuam sendo historicos independentes;
 - nenhuma credencial real e versionada.

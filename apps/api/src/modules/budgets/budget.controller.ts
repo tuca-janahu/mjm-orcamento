@@ -1,5 +1,5 @@
 import type { RequestHandler } from 'express';
-import { createBudgetInputSchema, updateBudgetInputSchema } from '@mjm/shared';
+import { createBudgetEnvelopeSchema, updateBudgetEnvelopeSchema } from '@mjm/shared';
 import { AppError } from '../../shared/errors/app-error.js';
 import {
   createBudget,
@@ -33,7 +33,7 @@ export const create: RequestHandler = async (request, response, next) => {
   try {
     const budget = await createBudget(
       routeParam(request, 'projectId'),
-      createBudgetInputSchema.parse(request.body),
+      createBudgetEnvelopeSchema.parse(request.body),
       authenticatedUserId(request)
     );
     response.status(201).json({ budget });
@@ -42,7 +42,12 @@ export const create: RequestHandler = async (request, response, next) => {
 
 export const update: RequestHandler = async (request, response, next) => {
   try {
-    response.json({ budget: await updateBudget(routeParam(request, 'id'), updateBudgetInputSchema.parse(request.body)) });
+    response.json({
+      budget: await updateBudget(
+        routeParam(request, 'id'),
+        updateBudgetEnvelopeSchema.parse(request.body)
+      )
+    });
   } catch (error) { next(error); }
 };
 
