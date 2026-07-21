@@ -1,8 +1,10 @@
 import type { RequestHandler } from 'express';
 import { createBudgetEnvelopeSchema, updateBudgetEnvelopeSchema } from '@mjm/shared';
+import { z } from 'zod';
 import { AppError } from '../../shared/errors/app-error.js';
 import {
   createBudget,
+  deleteBudget,
   finalizeBudget,
   getBudget,
   listBudgets,
@@ -21,6 +23,13 @@ function routeParam(request: Parameters<RequestHandler>[0], name: string): strin
   return value;
 }
 
+const idempotencyKeySchema = z.string().uuid();
+
+function idempotencyKey(request: Parameters<RequestHandler>[0]): string | undefined {
+  const value = request.get('Idempotency-Key');
+  return value === undefined ? undefined : idempotencyKeySchema.parse(value);
+}
+
 export const index: RequestHandler = async (request, response, next) => {
   try { response.json({ budgets: await listBudgets(routeParam(request, 'projectId')) }); } catch (error) { next(error); }
 };
@@ -29,12 +38,20 @@ export const show: RequestHandler = async (request, response, next) => {
   try { response.json({ budget: await getBudget(routeParam(request, 'id')) }); } catch (error) { next(error); }
 };
 
+export const remove: RequestHandler = async (request, response, next) => {
+  try {
+    await deleteBudget(routeParam(request, 'id'));
+    response.status(204).send();
+  } catch (error) { next(error); }
+};
+
 export const create: RequestHandler = async (request, response, next) => {
   try {
     const budget = await createBudget(
       routeParam(request, 'projectId'),
       createBudgetEnvelopeSchema.parse(request.body),
-      authenticatedUserId(request)
+      authenticatedUserId(request),
+      idempotencyKey(request)
     );
     response.status(201).json({ budget });
   } catch (error) { next(error); }

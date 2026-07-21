@@ -49,6 +49,12 @@ export function ProjectFormPage() {
     <div className={ui.narrowPage}>
       <header className={ui.pageHeading}>
         <div>
+          <Link
+            className="mb-6 inline-flex items-center gap-2 text-[0.625rem] font-bold tracking-[0.1em] text-zinc-500 uppercase no-underline transition-colors hover:text-zinc-950"
+            to="/projects"
+          >
+            <span aria-hidden="true">←</span> Voltar
+          </Link>
           <p className={ui.eyebrow}>Projetos / Novo</p>
           <h1 className={ui.pageTitle}>Novo projeto</h1>
           <p className={ui.subtitle}>

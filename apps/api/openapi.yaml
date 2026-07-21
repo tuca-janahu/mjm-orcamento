@@ -93,6 +93,12 @@ paths:
       security: [{ cookieAuth: [] }]
       responses:
         '204': { description: Projeto excluido. }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '404':
+          description: Projeto nao encontrado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
         '409': { description: Projetos com orcamentos nao podem ser excluidos. }
   /projects/{projectId}/budgets:
     parameters:
@@ -108,6 +114,12 @@ paths:
     post:
       summary: Criar nova versao de orcamento WEBSITE ou PLATAFORMA_WEB
       security: [{ cookieAuth: [] }]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: UUID opcional reutilizado como id do orcamento; repetir a mesma requisicao com a mesma chave devolve o registro ja criado sem gerar outra versao.
+          schema: { type: string, format: uuid }
       requestBody:
         required: true
         content:
@@ -115,8 +127,8 @@ paths:
             schema: { $ref: '#/components/schemas/CreateBudgetInput' }
       responses:
         '201': { description: Orcamento calculado e persistido com seus itens. }
-        '400': { description: Envelope ou campos do tipo de aplicacao invalidos. }
-        '409': { description: O tipo do projeto mudou durante a criacao ou a versao nao pode ser reservada. }
+        '400': { description: Envelope, chave de idempotencia ou campos do tipo de aplicacao invalidos. }
+        '409': { description: O tipo do projeto mudou, a versao nao pode ser reservada ou a chave de idempotencia foi reutilizada com outro conteudo. }
         '422': { description: Tipo de aplicacao ainda sem precificacao. }
   /budgets/{id}:
     parameters:
@@ -137,6 +149,14 @@ paths:
       responses:
         '200': { description: Rascunho atualizado. }
         '409': { description: Orcamento nao editavel. }
+    delete:
+      summary: Excluir um orcamento em rascunho e seus itens
+      security: [{ cookieAuth: [] }]
+      responses:
+        '204': { description: Orcamento em rascunho excluido. }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '404': { description: Orcamento nao encontrado. }
+        '409': { description: Apenas orcamentos em rascunho podem ser excluidos. }
   /budgets/{id}/recalculate:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -153,8 +173,8 @@ paths:
       summary: Finalizar um orcamento sem recalcular seus valores congelados
       security: [{ cookieAuth: [] }]
       responses:
-        '200': { description: Status alterado para FINALIZADO; escopo, itens e totais sao preservados. }
-        '409': { description: Orcamento nao editavel. }
+        '200': { description: Status alterado para FINALIZADO ou confirmacao idempotente de que ja estava finalizado; escopo, itens e totais sao preservados. }
+        '409': { description: Orcamento esta em um status diferente de RASCUNHO ou FINALIZADO. }
   /pricing-configs:
     get:
       summary: Listar configuracoes de preco ativas

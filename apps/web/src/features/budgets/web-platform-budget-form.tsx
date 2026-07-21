@@ -4,6 +4,7 @@ import axios from "axios";
 import { useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router";
+import { ConfirmDialog } from "../../components/confirm-dialog";
 import { api } from "../../lib/api";
 import type { BudgetDto, ProjectSummary } from "../../lib/api-types";
 import { ui } from "../../lib/ui";
@@ -29,6 +30,14 @@ export function WebPlatformBudgetForm() {
   const [project, setProject] = useState<ProjectSummary | null>(null);
   const [loading, setLoading] = useState(editing);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [pendingFinalizeValues, setPendingFinalizeValues] =
+    useState<WebPlatformBudgetFormValues | null>(null);
+  const [finalizing, setFinalizing] = useState(false);
+  const [finalizeError, setFinalizeError] = useState<string | null>(null);
+  const [persistedFinalizeBudgetId, setPersistedFinalizeBudgetId] = useState<
+    string | null
+  >(null);
+  const [creationIdempotencyKey] = useState(() => crypto.randomUUID());
   const methods = useForm<WebPlatformBudgetFormValues>({
     resolver: zodResolver(webPlatformBudgetFormSchema),
     defaultValues: webPlatformDefaultValues,
@@ -75,35 +84,129 @@ export function WebPlatformBudgetForm() {
     }
   }, [editing, id, navigate, projectId, reset]);
 
-  const submit = handleSubmit(async (values) => {
+  async function persistDraft(
+    values: WebPlatformBudgetFormValues,
+  ): Promise<BudgetDto<WebPlatformBudgetInput>> {
+    if (editing) {
+      const response = await api.patch<{
+        budget: BudgetDto<WebPlatformBudgetInput>;
+      }>(`/budgets/${id}`, values);
+      return response.data.budget;
+    }
+
+    try {
+      const response = await api.post<{
+        budget: BudgetDto<WebPlatformBudgetInput>;
+      }>(`/projects/${projectId}/budgets`, values, {
+        headers: { "Idempotency-Key": creationIdempotencyKey },
+      });
+      return response.data.budget;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response === undefined) {
+        try {
+          const recovered = await api.get<{
+            budget: BudgetDto<WebPlatformBudgetInput>;
+          }>(`/budgets/${creationIdempotencyKey}`);
+          return recovered.data.budget;
+        } catch {
+          // O retry reutilizara a mesma chave se a criacao nao tiver sido persistida.
+        }
+      }
+      throw error;
+    }
+  }
+
+  function budgetErrorMessage(error: unknown, fallback: string): string {
+    return axios.isAxiosError<ApiErrorBody>(error)
+      ? (error.response?.data.error?.message ?? fallback)
+      : fallback;
+  }
+
+  const saveDraft = handleSubmit(async (values) => {
     setServerError(null);
     try {
-      const response = editing
-        ? await api.patch<{ budget: BudgetDto<WebPlatformBudgetInput> }>(
-            `/budgets/${id}`,
-            values,
-          )
-        : await api.post<{ budget: BudgetDto<WebPlatformBudgetInput> }>(
-            `/projects/${projectId}/budgets`,
-            values,
-          );
-      void navigate(`/budgets/${response.data.budget.id}`);
+      const budget = await persistDraft(values);
+      void navigate(`/budgets/${budget.id}`);
     } catch (error) {
       setServerError(
-        axios.isAxiosError<ApiErrorBody>(error)
-          ? (error.response?.data.error?.message ??
-              "Não foi possível salvar o orçamento.")
-          : "Não foi possível salvar o orçamento.",
+        budgetErrorMessage(error, "Não foi possível salvar o orçamento."),
       );
     }
   });
 
+  const requestFinalize = handleSubmit((values) => {
+    setServerError(null);
+    setFinalizeError(null);
+    setPersistedFinalizeBudgetId(null);
+    setPendingFinalizeValues(values);
+  });
+
+  async function finalizeBudget(): Promise<void> {
+    if (pendingFinalizeValues === null) return;
+
+    setFinalizeError(null);
+    setFinalizing(true);
+    try {
+      let budgetId = persistedFinalizeBudgetId;
+      if (budgetId === null) {
+        const draft = await persistDraft(pendingFinalizeValues);
+        budgetId = draft.id;
+        setPersistedFinalizeBudgetId(budgetId);
+      }
+
+      try {
+        await api.post(`/budgets/${budgetId}/finalize`);
+      } catch (error) {
+        try {
+          const recovered = await api.get<{
+            budget: BudgetDto<WebPlatformBudgetInput>;
+          }>(`/budgets/${budgetId}`);
+          if (recovered.data.budget.status !== "FINALIZADO") throw error;
+        } catch {
+          throw error;
+        }
+      }
+      setPendingFinalizeValues(null);
+      setPersistedFinalizeBudgetId(null);
+      void navigate(`/budgets/${budgetId}`);
+    } catch (error) {
+      setFinalizeError(
+        budgetErrorMessage(error, "Não foi possível finalizar o orçamento."),
+      );
+    } finally {
+      setFinalizing(false);
+    }
+  }
+
+  function closeFinalizeDialog(): void {
+    if (finalizing) return;
+
+    const draftId = persistedFinalizeBudgetId;
+    setPendingFinalizeValues(null);
+    setPersistedFinalizeBudgetId(null);
+    setFinalizeError(null);
+    if (!editing && draftId !== null) void navigate(`/budgets/${draftId}`);
+  }
+
   if (loading) return <div className={ui.loading}>Carregando orçamento...</div>;
+
+  const backTarget =
+    editing && id !== undefined
+      ? `/budgets/${id}`
+      : projectId !== undefined
+        ? `/projects/${projectId}`
+        : "/projects";
 
   return (
     <div className={ui.pageContent}>
       <header className={ui.pageHeading}>
         <div>
+          <Link
+            className={`${ui.secondaryAction} mb-5`}
+            to={backTarget}
+          >
+            ← Voltar
+          </Link>
           <p className={ui.eyebrow}>
             {editing
               ? "Orçamentos / Editar rascunho"
@@ -120,7 +223,7 @@ export function WebPlatformBudgetForm() {
       </header>
 
       <FormProvider {...methods}>
-        <form className={ui.form} onSubmit={submit} noValidate>
+        <form className={ui.form} onSubmit={saveDraft} noValidate>
           <StructureSection />
           <ProductSection />
           <ResourcesSection />
@@ -129,30 +232,43 @@ export function WebPlatformBudgetForm() {
 
           {serverError && <div className={ui.error}>{serverError}</div>}
 
-          <footer className={ui.formActions}>
+          <footer className={`${ui.formActions} flex-wrap`}>
             <Link
               className={ui.secondaryAction}
-              to={
-                editing && id !== undefined
-                  ? `/budgets/${id}`
-                  : project
-                    ? `/projects/${project.id}`
-                    : "/projects"
-              }
+              to={backTarget}
             >
-              Cancelar
+              ← Voltar
             </Link>
             <button
-              className={ui.primaryAction}
-              disabled={isSubmitting}
+              className={`${ui.secondaryAction} min-w-40`}
+              disabled={isSubmitting || finalizing}
               type="submit"
             >
-              {isSubmitting ? "Calculando..." : "Calcular e salvar"}{" "}
-              <span>→</span>
+              {isSubmitting ? "Salvando..." : "Salvar rascunho"}
+            </button>
+            <button
+              className={`${ui.primaryAction} min-w-48`}
+              disabled={isSubmitting || finalizing}
+              type="button"
+              onClick={() => void requestFinalize()}
+            >
+              Finalizar orçamento
             </button>
           </footer>
         </form>
       </FormProvider>
+
+      <ConfirmDialog
+        open={pendingFinalizeValues !== null}
+        title="Finalizar orçamento?"
+        description="Após a finalização, este orçamento ficará congelado e não poderá mais ser editado diretamente."
+        confirmLabel="Finalizar orçamento"
+        tone="primary"
+        loading={finalizing}
+        error={finalizeError}
+        onClose={closeFinalizeDialog}
+        onConfirm={() => void finalizeBudget()}
+      />
     </div>
   );
 }

@@ -23,9 +23,10 @@ O estado atual contempla:
 - motores de precificacao WEBSITE e PLATAFORMA_WEB independentes de Express;
 - orcamentos `Budget` versionados com itens `BudgetItem` congelados;
 - recalculo explicito e finalizacao controlada para rascunhos;
+- exclusao explicita de projetos sem orcamentos e de orcamentos ainda em rascunho;
 - testes unitarios e integrados do fluxo financeiro.
 
-O frontend permite criar e acompanhar projetos, criar novas versoes de orcamento, editar e recalcular rascunhos, visualizar itens e finalizar o orcamento. A precificacao automatica atende projetos `WEBSITE`, nas categorias landing page, institucional e portal de conteudo, e `PLATAFORMA_WEB`, nas categorias portal do cliente, SaaS, marketplace, plataforma de membros e personalizada. Os demais tipos continuam sem calculo automatico.
+O frontend permite criar e acompanhar projetos, criar novas versoes de orcamento, salvar e recalcular rascunhos, visualizar itens e finalizar o orcamento mediante confirmacao. Exclusoes tambem exigem confirmacao explicita na interface. A precificacao automatica atende projetos `WEBSITE`, nas categorias landing page, institucional e portal de conteudo, e `PLATAFORMA_WEB`, nas categorias portal do cliente, SaaS, marketplace, plataforma de membros e personalizada. Os demais tipos continuam sem calculo automatico.
 
 ## Estrutura
 
@@ -149,5 +150,8 @@ A especificacao das rotas implementadas esta em `apps/api/openapi.yaml`.
 - o tipo do projeto determina o schema e o motor de calculo; ele nao e repetido no JSON do orcamento;
 - o tipo do projeto nao pode ser alterado depois que o primeiro orcamento for criado;
 - finalizar um rascunho preserva o calculo existente; somente uma acao explicita de recalculo aplica a tabela de precos atual;
+- a criacao iniciada pelo frontend usa `Idempotency-Key` como UUID do proprio orcamento, evitando uma nova versao quando a resposta se perde; repetir a finalizacao de um orcamento ja finalizado tambem e seguro;
+- apenas orcamentos em rascunho podem ser excluidos; versoes finalizadas permanecem no historico;
+- projetos so podem ser excluidos enquanto nao possuirem orcamentos;
 - o contrato de campos WEBSITE experimental anterior foi substituido diretamente e nao possui camada `V1`/`V2` de compatibilidade; as versoes de negociacao de um orcamento continuam sendo historicos independentes;
 - nenhuma credencial real e versionada.

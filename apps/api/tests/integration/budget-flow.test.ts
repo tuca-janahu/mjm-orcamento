@@ -278,6 +278,41 @@ describe.sequential('fluxo de projetos e orcamentos', () => {
     expect(updated.body.project.status).toBe('PREPARACAO');
   });
 
+  it('reaproveita uma criacao quando a mesma chave idempotente e reenviada', async () => {
+    const project = await agent.post('/projects').send({
+      name: 'Projeto com criacao idempotente',
+      applicationType: 'WEBSITE'
+    });
+    const key = '00000000-0000-4000-8000-000000000010';
+    const createRequest = () => agent
+      .post(`/projects/${project.body.project.id}/budgets`)
+      .set('Idempotency-Key', key)
+      .send({ inputData: completeInput });
+
+    const first = await createRequest();
+    const replay = await createRequest();
+
+    expect(first.status).toBe(201);
+    expect(replay.status).toBe(201);
+    expect(first.body.budget.id).toBe(key);
+    expect(replay.body.budget.id).toBe(first.body.budget.id);
+    expect(replay.body.budget.versionNumber).toBe(first.body.budget.versionNumber);
+    expect(await prisma.budget.count({
+      where: { projectId: project.body.project.id }
+    })).toBe(1);
+
+    const conflictingReplay = await agent
+      .post(`/projects/${project.body.project.id}/budgets`)
+      .set('Idempotency-Key', key)
+      .send({ inputData: { ...completeInput, pageCount: 8 } });
+
+    expect(conflictingReplay.status).toBe(409);
+    expect(conflictingReplay.body.error.code).toBe('BUDGET_IDEMPOTENCY_KEY_REUSED');
+    expect(await prisma.budget.count({
+      where: { projectId: project.body.project.id }
+    })).toBe(1);
+  });
+
   it('cria o primeiro orcamento com o novo escopo completo', async () => {
     const response = await agent.post(`/projects/${projectId}/budgets`).send({
       inputData: completeInput
@@ -370,6 +405,33 @@ describe.sequential('fluxo de projetos e orcamentos', () => {
     expect(finalized.body.budget.finalTotal).toBe('18388.00');
     expect(finalized.body.budget.monthlyRecurringTotal).toBe('1000.00');
     expect(finalized.body.budget.items).toEqual(firstItems);
+
+    const replay = await agent.post(`/budgets/${firstBudgetId}/finalize`);
+    expect(replay.status).toBe(200);
+    expect(replay.body.budget.id).toBe(firstBudgetId);
+    expect(replay.body.budget.status).toBe('FINALIZADO');
+    expect(replay.body.budget.items).toEqual(firstItems);
+  });
+
+  it('protege a exclusao de orcamentos sem autenticacao', async () => {
+    const response = await request(app).delete(`/budgets/${secondBudgetId}`);
+
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe('UNAUTHENTICATED');
+    expect(await prisma.budget.count({ where: { id: secondBudgetId } })).toBe(1);
+  });
+
+  it('impede excluir um orcamento finalizado e preserva seu historico', async () => {
+    const itemCountBefore = await prisma.budgetItem.count({
+      where: { budgetId: firstBudgetId }
+    });
+    const response = await agent.delete(`/budgets/${firstBudgetId}`);
+
+    expect(response.status).toBe(409);
+    expect(response.body.error.code).toBe('BUDGET_NOT_DELETABLE');
+    expect(await prisma.budget.count({ where: { id: firstBudgetId } })).toBe(1);
+    expect(await prisma.budgetItem.count({ where: { budgetId: firstBudgetId } }))
+      .toBe(itemCountBefore);
   });
 
   it('recalcula explicitamente um rascunho com os precos atuais', async () => {
@@ -389,6 +451,60 @@ describe.sequential('fluxo de projetos e orcamentos', () => {
       (item) => item.code === 'WEBSITE_BASE_INSTITUCIONAL'
     );
     expect(baseItem?.unitPrice).toBe('3800.00');
+  });
+
+  it('exclui atomicamente um rascunho e seus itens', async () => {
+    expect(await prisma.budgetItem.count({ where: { budgetId: secondBudgetId } }))
+      .toBeGreaterThan(0);
+
+    const response = await agent.delete(`/budgets/${secondBudgetId}`);
+
+    expect(response.status).toBe(204);
+    expect(response.body).toEqual({});
+    expect(await prisma.budget.count({ where: { id: secondBudgetId } })).toBe(0);
+    expect(await prisma.budgetItem.count({ where: { budgetId: secondBudgetId } })).toBe(0);
+  });
+
+  it('responde como nao encontrado ao excluir um orcamento inexistente', async () => {
+    const response = await agent.delete('/budgets/00000000-0000-4000-8000-000000000001');
+
+    expect(response.status).toBe(404);
+    expect(response.body.error.code).toBe('BUDGET_NOT_FOUND');
+  });
+
+  it('serializa a exclusao de rascunho com uma finalizacao concorrente', async () => {
+    const project = await agent.post('/projects').send({
+      name: 'Projeto em disputa de orcamento',
+      applicationType: 'WEBSITE'
+    });
+    const created = await agent
+      .post(`/projects/${project.body.project.id}/budgets`)
+      .send({ inputData: completeInput });
+    expect(project.status).toBe(201);
+    expect(created.status).toBe(201);
+    const disputedBudgetId = created.body.budget.id as string;
+
+    const [finalizeResponse, deleteResponse] = await Promise.all([
+      agent.post(`/budgets/${disputedBudgetId}/finalize`),
+      agent.delete(`/budgets/${disputedBudgetId}`)
+    ]);
+    const persisted = await prisma.budget.findUnique({
+      where: { id: disputedBudgetId },
+      include: { items: true }
+    });
+
+    if (finalizeResponse.status === 200) {
+      expect(deleteResponse.status).toBe(409);
+      expect(deleteResponse.body.error.code).toBe('BUDGET_NOT_DELETABLE');
+      expect(persisted?.status).toBe('FINALIZADO');
+      expect(persisted?.items.length).toBeGreaterThan(0);
+    } else {
+      expect(deleteResponse.status).toBe(204);
+      expect([404, 409]).toContain(finalizeResponse.status);
+      expect(['BUDGET_NOT_FOUND', 'BUDGET_NOT_EDITABLE'])
+        .toContain(finalizeResponse.body.error.code);
+      expect(persisted).toBeNull();
+    }
   });
 
   it('cria um projeto PLATAFORMA_WEB', async () => {

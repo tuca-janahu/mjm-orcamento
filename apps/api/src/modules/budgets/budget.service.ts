@@ -3,6 +3,7 @@ import type {
   CreateBudgetEnvelope,
   UpdateBudgetEnvelope
 } from '@mjm/shared';
+import { isDeepStrictEqual } from 'node:util';
 import {
   webPlatformBudgetInputSchema,
   websiteBudgetInputSchema
@@ -47,6 +48,20 @@ function serializeBudget<T extends {
       }))
     })
   };
+}
+
+function validateBudgetInput(
+  applicationType: ApplicationType,
+  rawInput: unknown
+): BudgetInputData {
+  if (applicationType === 'WEBSITE') return websiteBudgetInputSchema.parse(rawInput);
+  if (applicationType === 'PLATAFORMA_WEB') return webPlatformBudgetInputSchema.parse(rawInput);
+
+  throw new AppError(
+    422,
+    'PRICING_NOT_SUPPORTED',
+    'Este tipo de projeto ainda nao possui precificacao automatica'
+  );
 }
 
 async function calculate(
@@ -111,8 +126,42 @@ function budgetNotEditable(): AppError {
   );
 }
 
+function budgetNotDeletable(): AppError {
+  return new AppError(
+    409,
+    'BUDGET_NOT_DELETABLE',
+    'Apenas orcamentos em rascunho podem ser excluidos'
+  );
+}
+
+function idempotencyKeyReused(): AppError {
+  return new AppError(
+    409,
+    'BUDGET_IDEMPOTENCY_KEY_REUSED',
+    'A chave de idempotencia ja foi usada em outra criacao de orcamento'
+  );
+}
+
 function nullableNotes(notes: string): string | null {
   return notes === '' ? null : notes;
+}
+
+function isSameCreationRequest(
+  budget: {
+    projectId: string;
+    createdById: string;
+    inputData: Prisma.JsonValue;
+    notes: string | null;
+  },
+  projectId: string,
+  createdById: string,
+  inputData: BudgetInputData,
+  notes: string | null
+): boolean {
+  return budget.projectId === projectId
+    && budget.createdById === createdById
+    && budget.notes === notes
+    && isDeepStrictEqual(budget.inputData, inputData);
 }
 
 async function requireProject(projectId: string) {
@@ -137,12 +186,51 @@ export async function getBudget(id: string) {
   return serializeBudget(budget);
 }
 
+export async function deleteBudget(id: string): Promise<void> {
+  await prisma.$transaction(async (transaction) => {
+    const deleted = await transaction.budget.deleteMany({
+      where: { id, status: BudgetStatus.RASCUNHO }
+    });
+    if (deleted.count === 1) return;
+
+    const budget = await transaction.budget.findUnique({
+      where: { id },
+      select: { id: true }
+    });
+    if (budget === null) {
+      throw new AppError(404, 'BUDGET_NOT_FOUND', 'Orcamento nao encontrado');
+    }
+    throw budgetNotDeletable();
+  });
+}
+
 export async function createBudget(
   projectId: string,
   input: CreateBudgetEnvelope,
-  createdById: string
+  createdById: string,
+  idempotencyKey?: string
 ) {
   const project = await requireProject(projectId);
+  const normalizedInput = validateBudgetInput(project.applicationType, input.inputData);
+  const normalizedNotes = input.notes === undefined ? null : nullableNotes(input.notes);
+
+  if (idempotencyKey !== undefined) {
+    const priorBudget = await prisma.budget.findUnique({
+      where: { id: idempotencyKey },
+      include: budgetInclude
+    });
+    if (priorBudget !== null) {
+      if (!isSameCreationRequest(
+        priorBudget,
+        projectId,
+        createdById,
+        normalizedInput,
+        normalizedNotes
+      )) throw idempotencyKeyReused();
+      return serializeBudget(priorBudget);
+    }
+  }
+
   const calculation = await calculate(project.applicationType, input.inputData);
 
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -168,12 +256,30 @@ export async function createBudget(
           );
         }
 
+        if (idempotencyKey !== undefined) {
+          const existingBudget = await transaction.budget.findUnique({
+            where: { id: idempotencyKey },
+            include: budgetInclude
+          });
+          if (existingBudget !== null) {
+            if (!isSameCreationRequest(
+              existingBudget,
+              projectId,
+              createdById,
+              normalizedInput,
+              normalizedNotes
+            )) throw idempotencyKeyReused();
+            return existingBudget;
+          }
+        }
+
         const latest = await transaction.budget.aggregate({
           where: { projectId },
           _max: { versionNumber: true }
         });
         return transaction.budget.create({
           data: {
+            ...(idempotencyKey === undefined ? {} : { id: idempotencyKey }),
             projectId,
             versionNumber: (latest._max.versionNumber ?? 0) + 1,
             status: BudgetStatus.RASCUNHO,
@@ -288,14 +394,19 @@ export async function recalculateBudget(id: string) {
 }
 
 export async function finalizeBudget(id: string) {
-  const current = await requireDraftBudget(id);
+  const current = await prisma.budget.findUnique({
+    where: { id },
+    include: budgetInclude
+  });
+  if (current === null) throw new AppError(404, 'BUDGET_NOT_FOUND', 'Orcamento nao encontrado');
+  if (current.status === BudgetStatus.FINALIZADO) return serializeBudget(current);
+  if (current.status !== BudgetStatus.RASCUNHO) throw budgetNotEditable();
+
   const budget = await prisma.$transaction(async (transaction) => {
-    const finalized = await transaction.budget.updateMany({
+    await transaction.budget.updateMany({
       where: { id: current.id, status: BudgetStatus.RASCUNHO },
       data: { status: BudgetStatus.FINALIZADO }
     });
-    if (finalized.count !== 1) throw budgetNotEditable();
-
     const persisted = await transaction.budget.findUnique({
       where: { id: current.id },
       include: budgetInclude
@@ -303,6 +414,7 @@ export async function finalizeBudget(id: string) {
     if (persisted === null) {
       throw new AppError(404, 'BUDGET_NOT_FOUND', 'Orcamento nao encontrado');
     }
+    if (persisted.status !== BudgetStatus.FINALIZADO) throw budgetNotEditable();
     return persisted;
   });
   return serializeBudget(budget);

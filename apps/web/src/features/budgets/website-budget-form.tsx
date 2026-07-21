@@ -18,6 +18,7 @@ import axios from "axios";
 import { useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router";
+import { ConfirmDialog } from "../../components/confirm-dialog";
 import { api } from "../../lib/api";
 import type { BudgetDto, ProjectSummary } from "../../lib/api-types";
 import { labelFromEnum } from "../../lib/format";
@@ -107,6 +108,14 @@ export function WebsiteBudgetForm() {
   const [project, setProject] = useState<ProjectSummary | null>(null);
   const [loading, setLoading] = useState(editing);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [pendingFinalizeValues, setPendingFinalizeValues] =
+    useState<WebsiteBudgetFormValues | null>(null);
+  const [finalizing, setFinalizing] = useState(false);
+  const [finalizeError, setFinalizeError] = useState<string | null>(null);
+  const [persistedFinalizeBudgetId, setPersistedFinalizeBudgetId] = useState<
+    string | null
+  >(null);
+  const [creationIdempotencyKey] = useState(() => crypto.randomUUID());
   const {
     control,
     register,
@@ -164,28 +173,109 @@ export function WebsiteBudgetForm() {
     }
   }, [editing, id, navigate, projectId, reset]);
 
-  const submit = handleSubmit(async (values) => {
+  async function persistDraft(
+    values: WebsiteBudgetFormValues,
+  ): Promise<BudgetDto<WebsiteBudgetInput>> {
+    if (editing) {
+      const response = await api.patch<{
+        budget: BudgetDto<WebsiteBudgetInput>;
+      }>(`/budgets/${id}`, values);
+      return response.data.budget;
+    }
+
+    try {
+      const response = await api.post<{
+        budget: BudgetDto<WebsiteBudgetInput>;
+      }>(`/projects/${projectId}/budgets`, values, {
+        headers: { "Idempotency-Key": creationIdempotencyKey },
+      });
+      return response.data.budget;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response === undefined) {
+        try {
+          const recovered = await api.get<{
+            budget: BudgetDto<WebsiteBudgetInput>;
+          }>(`/budgets/${creationIdempotencyKey}`);
+          return recovered.data.budget;
+        } catch {
+          // O retry reutilizara a mesma chave se a criacao nao tiver sido persistida.
+        }
+      }
+      throw error;
+    }
+  }
+
+  function budgetErrorMessage(error: unknown, fallback: string): string {
+    return axios.isAxiosError<ApiErrorBody>(error)
+      ? (error.response?.data.error?.message ?? fallback)
+      : fallback;
+  }
+
+  const saveDraft = handleSubmit(async (values) => {
     setServerError(null);
     try {
-      const response = editing
-        ? await api.patch<{ budget: BudgetDto<WebsiteBudgetInput> }>(
-            `/budgets/${id}`,
-            values,
-          )
-        : await api.post<{ budget: BudgetDto<WebsiteBudgetInput> }>(
-            `/projects/${projectId}/budgets`,
-            values,
-          );
-      void navigate(`/budgets/${response.data.budget.id}`);
+      const budget = await persistDraft(values);
+      void navigate(`/budgets/${budget.id}`);
     } catch (error) {
       setServerError(
-        axios.isAxiosError<ApiErrorBody>(error)
-          ? (error.response?.data.error?.message ??
-              "Não foi possível salvar o orçamento.")
-          : "Não foi possível salvar o orçamento.",
+        budgetErrorMessage(error, "Não foi possível salvar o orçamento."),
       );
     }
   });
+
+  const requestFinalize = handleSubmit((values) => {
+    setServerError(null);
+    setFinalizeError(null);
+    setPersistedFinalizeBudgetId(null);
+    setPendingFinalizeValues(values);
+  });
+
+  async function finalizeBudget(): Promise<void> {
+    if (pendingFinalizeValues === null) return;
+
+    setFinalizeError(null);
+    setFinalizing(true);
+    try {
+      let budgetId = persistedFinalizeBudgetId;
+      if (budgetId === null) {
+        const draft = await persistDraft(pendingFinalizeValues);
+        budgetId = draft.id;
+        setPersistedFinalizeBudgetId(budgetId);
+      }
+
+      try {
+        await api.post(`/budgets/${budgetId}/finalize`);
+      } catch (error) {
+        try {
+          const recovered = await api.get<{
+            budget: BudgetDto<WebsiteBudgetInput>;
+          }>(`/budgets/${budgetId}`);
+          if (recovered.data.budget.status !== "FINALIZADO") throw error;
+        } catch {
+          throw error;
+        }
+      }
+      setPendingFinalizeValues(null);
+      setPersistedFinalizeBudgetId(null);
+      void navigate(`/budgets/${budgetId}`);
+    } catch (error) {
+      setFinalizeError(
+        budgetErrorMessage(error, "Não foi possível finalizar o orçamento."),
+      );
+    } finally {
+      setFinalizing(false);
+    }
+  }
+
+  function closeFinalizeDialog(): void {
+    if (finalizing) return;
+
+    const draftId = persistedFinalizeBudgetId;
+    setPendingFinalizeValues(null);
+    setPersistedFinalizeBudgetId(null);
+    setFinalizeError(null);
+    if (!editing && draftId !== null) void navigate(`/budgets/${draftId}`);
+  }
 
   const websiteCategory = watch("inputData.websiteCategory");
   const contentResponsibility = watch("inputData.contentResponsibility");
@@ -224,6 +314,12 @@ export function WebsiteBudgetForm() {
     <div className={ui.pageContent}>
       <header className={ui.pageHeading}>
         <div>
+          <Link
+            className={`${ui.secondaryAction} mb-5`}
+            to={editing ? `/budgets/${id}` : `/projects/${projectId}`}
+          >
+            ← Voltar
+          </Link>
           <p className={ui.eyebrow}>
             {editing
               ? "Orçamentos / Editar rascunho"
@@ -239,7 +335,7 @@ export function WebsiteBudgetForm() {
         </div>
       </header>
 
-      <form className={ui.form} onSubmit={submit} noValidate>
+      <form className={ui.form} onSubmit={saveDraft} noValidate>
         <section className={ui.formSection}>
           <div className={ui.formSectionHeading}>
             <span className="text-[0.625rem] font-bold text-zinc-400">01</span>
@@ -748,27 +844,42 @@ export function WebsiteBudgetForm() {
             {serverError}
           </div>
         )}
-        <div className={ui.formActions}>
+        <div className={`${ui.formActions} flex-wrap`}>
           <Link
             className={ui.secondaryAction}
             to={editing ? `/budgets/${id}` : `/projects/${projectId}`}
           >
-            Cancelar
+            ← Voltar
           </Link>
           <button
-            className={`${ui.primaryAction} min-w-48`}
-            disabled={isSubmitting}
+            className={`${ui.secondaryAction} min-w-40`}
+            disabled={isSubmitting || finalizing}
             type="submit"
           >
-            {isSubmitting
-              ? "Calculando..."
-              : editing
-                ? "Salvar e recalcular"
-                : "Criar orçamento"}{" "}
-            <span>→</span>
+            {isSubmitting ? "Salvando..." : "Salvar rascunho"}
+          </button>
+          <button
+            className={`${ui.primaryAction} min-w-48`}
+            disabled={isSubmitting || finalizing}
+            type="button"
+            onClick={() => void requestFinalize()}
+          >
+            Finalizar orçamento
           </button>
         </div>
       </form>
+
+      <ConfirmDialog
+        open={pendingFinalizeValues !== null}
+        title="Finalizar orçamento?"
+        description="Após a finalização, este orçamento ficará congelado e não poderá mais ser editado diretamente."
+        confirmLabel="Finalizar orçamento"
+        tone="primary"
+        loading={finalizing}
+        error={finalizeError}
+        onClose={closeFinalizeDialog}
+        onConfirm={() => void finalizeBudget()}
+      />
     </div>
   );
 }

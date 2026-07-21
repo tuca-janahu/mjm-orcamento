@@ -1,6 +1,7 @@
 import axios from "axios";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
+import { ConfirmDialog } from "../../components/confirm-dialog";
 import { api } from "../../lib/api";
 import type { BudgetDto } from "../../lib/api-types";
 import { formatCurrency, formatDate, labelFromEnum } from "../../lib/format";
@@ -46,6 +47,8 @@ export function BudgetDetailPage() {
   const [budget, setBudget] = useState<BudgetDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [action, setAction] = useState<"recalculate" | "finalize" | null>(null);
+  const [finalizeDialogOpen, setFinalizeDialogOpen] = useState(false);
+  const [finalizeError, setFinalizeError] = useState<string | null>(null);
 
   useEffect(() => {
     if (id === undefined) return;
@@ -58,19 +61,37 @@ export function BudgetDetailPage() {
   async function runAction(kind: "recalculate" | "finalize"): Promise<void> {
     if (id === undefined) return;
     setError(null);
+    if (kind === "finalize") setFinalizeError(null);
     setAction(kind);
     try {
       const { data } = await api.post<{ budget: BudgetDto }>(
         `/budgets/${id}/${kind}`,
       );
       setBudget(data.budget);
+      if (kind === "finalize") setFinalizeDialogOpen(false);
     } catch (caught) {
-      setError(
+      if (kind === "finalize") {
+        try {
+          const recovered = await api.get<{ budget: BudgetDto }>(
+            `/budgets/${id}`,
+          );
+          if (recovered.data.budget.status === "FINALIZADO") {
+            setBudget(recovered.data.budget);
+            setFinalizeDialogOpen(false);
+            return;
+          }
+        } catch {
+          // O modal permanece aberto e o endpoint aceita um novo retry seguro.
+        }
+      }
+
+      const message =
         axios.isAxiosError<ApiErrorBody>(caught)
           ? (caught.response?.data.error?.message ??
               "Não foi possível atualizar o orçamento.")
-          : "Não foi possível atualizar o orçamento.",
-      );
+          : "Não foi possível atualizar o orçamento.";
+      if (kind === "finalize") setFinalizeError(message);
+      else setError(message);
     } finally {
       setAction(null);
     }
@@ -93,6 +114,12 @@ export function BudgetDetailPage() {
 
   return (
     <div className={ui.pageContent}>
+      <Link
+        className={`${ui.secondaryAction} mt-6`}
+        to={`/projects/${budget.project.id}`}
+      >
+        ← Voltar ao projeto
+      </Link>
       <header className={ui.pageHeading}>
         <div>
           <p className={ui.eyebrow}>
@@ -134,10 +161,12 @@ export function BudgetDetailPage() {
               className={ui.primaryAction}
               disabled={action !== null}
               type="button"
-              onClick={() => void runAction("finalize")}
+              onClick={() => {
+                setFinalizeError(null);
+                setFinalizeDialogOpen(true);
+              }}
             >
-              {action === "finalize" ? "Finalizando..." : "Finalizar"}{" "}
-              <span>→</span>
+              Finalizar orçamento
             </button>
           </div>
         )}
@@ -247,6 +276,22 @@ export function BudgetDetailPage() {
 
         <ScopeDetails budget={budget} />
       </section>
+
+      <ConfirmDialog
+        open={finalizeDialogOpen}
+        title="Finalizar orçamento?"
+        description="Após a finalização, este orçamento ficará congelado e não poderá mais ser editado diretamente."
+        confirmLabel="Finalizar orçamento"
+        tone="primary"
+        loading={action === "finalize"}
+        error={finalizeError}
+        onClose={() => {
+          if (action === "finalize") return;
+          setFinalizeError(null);
+          setFinalizeDialogOpen(false);
+        }}
+        onConfirm={() => void runAction("finalize")}
+      />
     </div>
   );
 }
