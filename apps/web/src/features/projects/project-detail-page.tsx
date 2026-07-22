@@ -112,7 +112,8 @@ export function ProjectDetailPage() {
           </p>
         </div>
         {(project.applicationType === "WEBSITE" ||
-          project.applicationType === "PLATAFORMA_WEB") && (
+          project.applicationType === "PLATAFORMA_WEB" ||
+          project.applicationType === "SISTEMA_INTERNO") && (
           <Link
             className={ui.primaryAction}
             to={`/projects/${project.id}/budgets/new`}

@@ -15,18 +15,18 @@ O estado atual contempla:
 - autenticacao com JWT em cookie HttpOnly;
 - seed de um administrador;
 - rotas `POST /auth/login`, `POST /auth/logout` e `GET /auth/me`;
-- frontend com login, painel, projetos e fluxos de orcamento WEBSITE e PLATAFORMA_WEB;
+- frontend com login, painel, projetos e fluxos de orcamento WEBSITE, PLATAFORMA_WEB e SISTEMA_INTERNO;
 - testes automatizados da autenticacao;
 - documentacao OpenAPI das rotas implementadas.
 - CRUD backend de projetos;
-- configuracoes de preco WEBSITE e PLATAFORMA_WEB no banco;
-- motores de precificacao WEBSITE e PLATAFORMA_WEB independentes de Express;
+- configuracoes de preco WEBSITE, PLATAFORMA_WEB e SISTEMA_INTERNO no banco;
+- motores de precificacao WEBSITE, PLATAFORMA_WEB e SISTEMA_INTERNO independentes de Express;
 - orcamentos `Budget` versionados com itens `BudgetItem` congelados;
 - recalculo explicito e finalizacao controlada para rascunhos;
 - exclusao explicita de projetos sem orcamentos e de orcamentos ainda em rascunho;
 - testes unitarios e integrados do fluxo financeiro.
 
-O frontend permite criar e acompanhar projetos, criar novas versoes de orcamento, salvar e recalcular rascunhos, visualizar itens e finalizar o orcamento mediante confirmacao. Exclusoes tambem exigem confirmacao explicita na interface. A precificacao automatica atende projetos `WEBSITE`, nas categorias landing page, institucional e portal de conteudo, e `PLATAFORMA_WEB`, nas categorias portal do cliente, SaaS, marketplace, plataforma de membros e personalizada. Os demais tipos continuam sem calculo automatico.
+O frontend permite criar e acompanhar projetos, criar novas versoes de orcamento, salvar e recalcular rascunhos, visualizar itens e finalizar o orcamento mediante confirmacao. Exclusoes tambem exigem confirmacao explicita na interface. A precificacao automatica atende projetos `WEBSITE`, `PLATAFORMA_WEB` e `SISTEMA_INTERNO`. Os demais tipos, incluindo `ECOMMERCE`, continuam sem calculo automatico.
 
 ## Estrutura
 
@@ -69,7 +69,7 @@ pnpm db:migrate:deploy
 pnpm db:seed
 ```
 
-O seed exige `SEED_ADMIN_NAME`, `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD`. Ele e idempotente para o e-mail informado e para as configuracoes de preco WEBSITE e PLATAFORMA_WEB. Configuracoes ja existentes preservam o valor ajustado no banco; o seed atualiza apenas seus dados descritivos e estado ativo.
+O seed exige `SEED_ADMIN_NAME`, `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD`. Ele e idempotente para o e-mail informado e para as configuracoes de preco WEBSITE, PLATAFORMA_WEB e SISTEMA_INTERNO. Configuracoes ja existentes preservam o valor comercial ajustado no banco; o seed atualiza seus dados descritivos, estado ativo e, para a base de Sistema Interno, as franquias aprovadas em metadata.
 
 O arquivo `apps/api/prisma.config.ts` carrega o `.env` da raiz para que os comandos Prisma possam ser executados pelos scripts do monorepo sem duplicar variaveis dentro de `apps/api`.
 
@@ -129,6 +129,53 @@ Protecoes iniciais:
 Cada tipo possui schema, configuracoes e motor proprios. O backend carrega o tipo do projeto antes de validar o JSON do orcamento e o confirma novamente na transacao de persistencia, impedindo que campos ou precos de WEBSITE sejam usados em PLATAFORMA_WEB e vice-versa.
 
 Em PLATAFORMA_WEB, o valor-base inclui a fundacao frontend/backend, persistencia, autenticacao por e-mail e senha, cinco telas, dois perfis e um idioma. O restante e detalhado por estrutura de contas, design, modulos funcionais, backoffice, dashboards, relatorios, autenticacao adicional, pagamentos, notificacoes, arquivos, auditoria, integracoes e migracao de dados. A data de lancamento nao pode estar antes do dia UTC atual. A implantacao da hospedagem e um item unico sem multiplicadores; hospedagem mensal e manutencao ficam separadas no total recorrente.
+
+### Sistema Interno e Plataforma Web
+
+`SISTEMA_INTERNO` representa uma aplicacao cujo valor principal e entregue aos colaboradores de uma organizacao para executar ou controlar processos internos. Exemplos incluem gestao operacional, CRM de uso interno, estoque, ativos, ordens de servico, solicitacoes, contratos, projetos, aprovacoes e gestao documental.
+
+`PLATAFORMA_WEB` representa um produto ou servico digital cujo valor principal e entregue a clientes, membros, fornecedores, parceiros ou outros usuarios externos. SaaS, multitenancy, marketplace, assinatura comercial, pagamentos do proprio produto e portais de autoatendimento externos pertencem a Plataforma Web. A tecnologia nao determina a classificacao: um Sistema Interno pode funcionar no navegador e uma Plataforma Web pode possuir backoffice interno.
+
+### Escopo e base de Sistema Interno
+
+Sistema Interno utiliza uma unica configuracao-base, `INTERNAL_SYSTEM_BASE`. Categorias como CRM, estoque ou ordens de servico nao selecionam bases diferentes; toda funcionalidade de negocio deve ser descrita por um modulo nomeado. Cada modulo e integracao produz um `BudgetItem` individual, com nome, descricao, complexidade, quantidade e preco congelados.
+
+A base cobre somente a fundacao tecnica:
+
+- autenticacao por e-mail e senha;
+- estrutura inicial da aplicacao;
+- dois perfis de acesso com permissoes padrao;
+- administracao basica de usuarios e parametros;
+- um dashboard simples;
+- notificacoes dentro do sistema.
+
+Essas franquias ficam em `PricingConfig.metadata`. O motor valida o metadata, calcula somente os excedentes e copia as franquias e quantidades informadas para o item-base. Assim, uma alteracao futura de franquias nao torna ambiguo um orcamento antigo.
+
+Modulos possuem complexidade `SIMPLE`, `STANDARD` ou `COMPLEX`, que escolhe seu preco unitario. O ajuste global `NONE`, `MODERATE` ou `HIGH` e reservado a fatores transversais nao capturados pelos modulos. A existencia de um modulo complexo, isoladamente, nao justifica aplicar complexidade global.
+
+O workflow global representa um processo transversal compartilhado por mais de um modulo. Um fluxo exclusivo de um modulo deve ser refletido na complexidade daquele modulo, evitando dupla cobranca. Workflow personalizado e fluxo documental podem coexistir quando forem entregas independentes.
+
+### Calculo de Sistema Interno
+
+```text
+servicos ajustados =
+  subtotal dos servicos ajustaveis
+  x multiplicador de complexidade
+  x multiplicador de urgencia
+  x (1 - desconto / 100)
+
+total final =
+  servicos ajustados
+  + implantacao de hospedagem
+
+total mensal =
+  hospedagem mensal
+  + manutencao mensal
+```
+
+Base, modulos, perfis adicionais, permissoes, autenticacao adicional, workflow, documentos, dashboards adicionais, relatorios, notificacoes, integracoes e migracao sao ajustaveis. Implantacao de hospedagem e pontual e nao recebe complexidade, urgencia ou desconto. Hospedagem mensal e manutencao sao recorrentes e nao entram no total inicial.
+
+Custos de consumo de e-mail, WhatsApp, SMS, SSO, nuvem ou outros fornecedores externos nao estao incluidos, salvo indicacao comercial expressa.
 
 ## OpenAPI
 

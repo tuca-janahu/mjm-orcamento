@@ -6,6 +6,7 @@ import { api } from "../../lib/api";
 import type { BudgetDto } from "../../lib/api-types";
 import { formatCurrency, formatDate, labelFromEnum } from "../../lib/format";
 import { statusBadgeClass, ui } from "../../lib/ui";
+import { InternalSystemBudgetScope } from "./internal-system-budget-scope";
 import { WebPlatformBudgetScope } from "./web-platform-budget-scope";
 import { WebsiteBudgetScope } from "./website-budget-scope";
 
@@ -29,6 +30,15 @@ function ScopeDetails({ budget }: { budget: BudgetDto }) {
   ) {
     return (
       <WebPlatformBudgetScope scope={budget.inputData} notes={budget.notes} />
+    );
+  }
+
+  if (
+    budget.project.applicationType === "SISTEMA_INTERNO" &&
+    "modules" in budget.inputData
+  ) {
+    return (
+      <InternalSystemBudgetScope scope={budget.inputData} notes={budget.notes} />
     );
   }
 

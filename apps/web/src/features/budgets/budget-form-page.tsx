@@ -5,19 +5,22 @@ import { api } from "../../lib/api";
 import type { BudgetDto, ProjectSummary } from "../../lib/api-types";
 import { labelFromEnum } from "../../lib/format";
 import { ui } from "../../lib/ui";
+import { InternalSystemBudgetForm } from "./internal-system-budget-form";
 import { WebPlatformBudgetForm } from "./web-platform-budget-form";
 import { WebsiteBudgetForm } from "./website-budget-form";
 
 type BudgetApplicationType = Extract<
   ApplicationType,
-  "WEBSITE" | "PLATAFORMA_WEB"
+  "WEBSITE" | "PLATAFORMA_WEB" | "SISTEMA_INTERNO"
 >;
 
 function isBudgetApplicationType(
   applicationType: ApplicationType,
 ): applicationType is BudgetApplicationType {
   return (
-    applicationType === "WEBSITE" || applicationType === "PLATAFORMA_WEB"
+    applicationType === "WEBSITE" ||
+    applicationType === "PLATAFORMA_WEB" ||
+    applicationType === "SISTEMA_INTERNO"
   );
 }
 
@@ -97,9 +100,7 @@ export function BudgetFormPage() {
     );
   }
 
-  return applicationType === "WEBSITE" ? (
-    <WebsiteBudgetForm />
-  ) : (
-    <WebPlatformBudgetForm />
-  );
+  if (applicationType === "WEBSITE") return <WebsiteBudgetForm />;
+  if (applicationType === "PLATAFORMA_WEB") return <WebPlatformBudgetForm />;
+  return <InternalSystemBudgetForm />;
 }

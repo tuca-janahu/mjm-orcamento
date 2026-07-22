@@ -3,6 +3,7 @@ import type {
   budgetInputDataSchema,
   createBudgetEnvelopeSchema,
   createBudgetInputSchema,
+  internalSystemBudgetInputSchema,
   updateBudgetEnvelopeSchema,
   webPlatformBudgetInputSchema,
   websiteBudgetInputSchema
@@ -11,6 +12,7 @@ import type { createProjectInputSchema, updateProjectInputSchema } from '../sche
 
 export type WebsiteBudgetInput = z.infer<typeof websiteBudgetInputSchema>;
 export type WebPlatformBudgetInput = z.infer<typeof webPlatformBudgetInputSchema>;
+export type InternalSystemBudgetInput = z.infer<typeof internalSystemBudgetInputSchema>;
 export type BudgetInputData = z.infer<typeof budgetInputDataSchema>;
 export type CreateBudgetEnvelope = z.infer<typeof createBudgetEnvelopeSchema>;
 export type UpdateBudgetEnvelope = z.infer<typeof updateBudgetEnvelopeSchema>;

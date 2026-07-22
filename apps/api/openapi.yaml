@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: MJM Orcamentos API
   version: 0.1.0
-  description: API interna de projetos e orcamentos com precificacao completa para WEBSITE e PLATAFORMA_WEB.
+  description: API interna de projetos e orcamentos com precificacao completa para WEBSITE, PLATAFORMA_WEB e SISTEMA_INTERNO. Sistema Interno atende processos executados principalmente por colaboradores; Plataforma Web entrega o valor principal a clientes, membros, fornecedores ou outros usuarios externos.
 servers:
   - url: http://localhost:3001
 paths:
@@ -112,7 +112,7 @@ paths:
       responses:
         '200': { description: Lista de orcamentos. }
     post:
-      summary: Criar nova versao de orcamento WEBSITE ou PLATAFORMA_WEB
+      summary: Criar nova versao de orcamento WEBSITE, PLATAFORMA_WEB ou SISTEMA_INTERNO
       security: [{ cookieAuth: [] }]
       parameters:
         - name: Idempotency-Key
@@ -435,6 +435,199 @@ components:
           type: string
           maxLength: 500
           description: Obrigatoria quando discountPercentage for maior que zero.
+    InternalSystemScopedItem:
+      type: object
+      additionalProperties: false
+      required: [name, complexity]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 120
+          pattern: '^\s*\S.*\S\s*$'
+        description:
+          type: string
+          maxLength: 1000
+        complexity:
+          type: string
+          enum: [SIMPLE, STANDARD, COMPLEX]
+    InternalSystemBudgetInput:
+      type: object
+      additionalProperties: false
+      description: Escopo de uma aplicacao cujo valor principal e entregue aos colaboradores de uma organizacao para executar ou controlar processos internos. SaaS, multitenancy, marketplace, pagamentos do produto e portais de autoatendimento externos pertencem a PLATAFORMA_WEB. Mensalidades sao calculadas separadamente do total inicial.
+      required:
+        - modules
+        - accessProfileCount
+        - permissionModel
+        - additionalAuthentication
+        - workflowLevel
+        - documentManagement
+        - dashboardCount
+        - reportCount
+        - additionalNotificationChannels
+        - integrations
+        - dataMigration
+        - dataMigrationSourceCount
+        - hostingPlan
+        - maintenancePlan
+        - complexityAdjustment
+        - discountPercentage
+      properties:
+        modules:
+          type: array
+          minItems: 1
+          maxItems: 20
+          description: Capacidades independentes do sistema, nao telas. Os nomes devem ser unicos apos ignorar caixa, espacos excedentes e acentos.
+          items: { $ref: '#/components/schemas/InternalSystemScopedItem' }
+        accessProfileCount:
+          type: integer
+          minimum: 1
+          maximum: 20
+          description: Perfis funcionais de acesso, nao quantidade de usuarios. A base inclui dois.
+        targetLaunchDate:
+          type: string
+          format: date
+          description: Data nunca anterior ao dia UTC atual. Sem data ou 45 dias ou mais e normal; 21 a 44 e prioridade; ate 20 e expresso.
+        permissionModel:
+          type: string
+          enum: [STANDARD_ROLES, CUSTOM_PERMISSIONS]
+          description: Papeis padrao estao incluidos; permissoes personalizadas geram adicional.
+        additionalAuthentication:
+          type: array
+          uniqueItems: true
+          description: E-mail e senha estao incluidos. Custos de fornecedores externos nao fazem parte do orcamento.
+          items:
+            type: string
+            enum: [MFA, CORPORATE_SSO]
+        workflowLevel:
+          type: string
+          enum: [NONE, SIMPLE, CUSTOM]
+          description: Workflow global somente para processo transversal a mais de um modulo; fluxo restrito a um modulo deve compor sua complexidade.
+        documentManagement:
+          type: string
+          enum: [NONE, BASIC_ATTACHMENTS, DOCUMENT_WORKFLOW]
+        dashboardCount:
+          type: integer
+          minimum: 1
+          maximum: 20
+          description: Um dashboard simples esta incluido na base.
+        reportCount:
+          type: integer
+          minimum: 0
+          maximum: 50
+        additionalNotificationChannels:
+          type: array
+          uniqueItems: true
+          description: Notificacoes internas estao incluidas. Custos de e-mail, WhatsApp ou SMS nao estao incluidos.
+          items:
+            type: string
+            enum: [EMAIL, WHATSAPP_SMS]
+        integrations:
+          type: array
+          maxItems: 10
+          description: Sistemas externos com os quais o Sistema Interno trocara dados. Nomes devem ser unicos apos normalizacao.
+          items: { $ref: '#/components/schemas/InternalSystemScopedItem' }
+        dataMigration:
+          type: string
+          enum: [NONE, STRUCTURED_IMPORT, LEGACY_MIGRATION]
+        dataMigrationSourceCount:
+          type: integer
+          minimum: 0
+          maximum: 20
+        dataMigrationDescription:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          pattern: '.*\S.*'
+          description: Identificacao resumida das planilhas, bancos ou sistemas de origem.
+        hostingPlan:
+          type: string
+          enum: [CLIENT_MANAGED, MJM_STANDARD, MJM_MANAGED]
+          description: Implantacao MJM e pontual e nao ajustavel; a mensalidade e recorrente e nao entra no total inicial.
+        maintenancePlan:
+          type: string
+          enum: [NONE, ESSENTIAL, STANDARD, CUSTOM]
+          description: Manutencao e recorrente, nao entra no total inicial e nao recebe ajustes.
+        complexityAdjustment:
+          type: string
+          enum: [NONE, MODERATE, HIGH]
+        complexityReason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          pattern: '.*\S.*'
+          description: Fator transversal nao capturado pela complexidade dos modulos.
+        discountPercentage:
+          type: number
+          minimum: 0
+          maximum: 100
+          multipleOf: 0.01
+        discountReason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          pattern: '.*\S.*'
+      allOf:
+        - if:
+            properties:
+              dataMigration: { const: NONE }
+            required: [dataMigration]
+          then:
+            properties:
+              dataMigrationSourceCount: { const: 0 }
+            not:
+              required: [dataMigrationDescription]
+          else:
+            required: [dataMigrationDescription]
+            properties:
+              dataMigrationSourceCount: { minimum: 1 }
+        - if:
+            properties:
+              complexityAdjustment: { const: NONE }
+            required: [complexityAdjustment]
+          then:
+            not:
+              required: [complexityReason]
+          else:
+            required: [complexityReason]
+        - if:
+            properties:
+              discountPercentage: { const: 0 }
+            required: [discountPercentage]
+          then:
+            not:
+              required: [discountReason]
+          else:
+            required: [discountReason]
+      example:
+        modules:
+          - name: Controle de estoque
+            complexity: SIMPLE
+          - name: Ordens de servico
+            complexity: STANDARD
+          - name: Aprovacoes internas
+            complexity: COMPLEX
+        accessProfileCount: 4
+        permissionModel: CUSTOM_PERMISSIONS
+        additionalAuthentication: [MFA]
+        workflowLevel: CUSTOM
+        documentManagement: DOCUMENT_WORKFLOW
+        dashboardCount: 2
+        reportCount: 2
+        additionalNotificationChannels: [EMAIL]
+        integrations:
+          - name: ERP corporativo
+            complexity: STANDARD
+        dataMigration: LEGACY_MIGRATION
+        dataMigrationSourceCount: 2
+        dataMigrationDescription: Banco do sistema anterior e planilha historica de estoque
+        hostingPlan: MJM_MANAGED
+        maintenancePlan: STANDARD
+        targetLaunchDate: '2026-08-20'
+        complexityAdjustment: MODERATE
+        complexityReason: Regras transversais entre estoque, ordens e aprovacoes
+        discountPercentage: 10
+        discountReason: Condicao comercial de contratacao conjunta
     CreateBudgetInput:
       type: object
       additionalProperties: false
@@ -444,6 +637,8 @@ components:
           oneOf:
             - $ref: '#/components/schemas/WebsiteBudgetInput'
             - $ref: '#/components/schemas/WebPlatformBudgetInput'
+            - $ref: '#/components/schemas/InternalSystemBudgetInput'
+          description: O schema aplicavel e determinado pelo applicationType do projeto; applicationType nao e repetido no corpo.
         notes: { type: string, maxLength: 4000 }
     UpdateBudgetInput:
       type: object
@@ -454,6 +649,8 @@ components:
           oneOf:
             - $ref: '#/components/schemas/WebsiteBudgetInput'
             - $ref: '#/components/schemas/WebPlatformBudgetInput'
+            - $ref: '#/components/schemas/InternalSystemBudgetInput'
+          description: O schema aplicavel e determinado pelo applicationType do projeto; applicationType nao e repetido no corpo.
         notes: { type: string, maxLength: 4000 }
     LoginInput:
       type: object

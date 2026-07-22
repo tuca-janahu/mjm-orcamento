@@ -5,6 +5,7 @@ import type {
 } from '@mjm/shared';
 import { isDeepStrictEqual } from 'node:util';
 import {
+  internalSystemBudgetInputSchema,
   webPlatformBudgetInputSchema,
   websiteBudgetInputSchema
 } from '@mjm/shared';
@@ -14,6 +15,7 @@ import { prisma } from '../../shared/prisma/client.js';
 import { lockProjectForUpdate } from '../../shared/prisma/locks.js';
 import { getActivePricing } from '../pricing/pricing.service.js';
 import type { PricingResult } from '../pricing/pricing.types.js';
+import { calculateInternalSystemBudget } from '../pricing/internal-system-pricing.js';
 import { calculateWebPlatformBudget } from '../pricing/web-platform-pricing.js';
 import { calculateWebsiteBudget } from '../pricing/website-pricing.js';
 
@@ -56,6 +58,9 @@ function validateBudgetInput(
 ): BudgetInputData {
   if (applicationType === 'WEBSITE') return websiteBudgetInputSchema.parse(rawInput);
   if (applicationType === 'PLATAFORMA_WEB') return webPlatformBudgetInputSchema.parse(rawInput);
+  if (applicationType === 'SISTEMA_INTERNO') {
+    return internalSystemBudgetInputSchema.parse(rawInput);
+  }
 
   throw new AppError(
     422,
@@ -81,6 +86,17 @@ async function calculate(
     return {
       inputData,
       result: calculateWebPlatformBudget(inputData, await getActivePricing(applicationType))
+    };
+  }
+
+  if (applicationType === 'SISTEMA_INTERNO') {
+    const inputData = internalSystemBudgetInputSchema.parse(rawInput);
+    return {
+      inputData,
+      result: calculateInternalSystemBudget(
+        inputData,
+        await getActivePricing(applicationType)
+      )
     };
   }
 

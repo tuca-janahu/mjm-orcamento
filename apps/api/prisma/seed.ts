@@ -5,9 +5,11 @@ import {
   PrismaClient,
   UserRole
 } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import { config } from 'dotenv';
 import { resolve } from 'node:path';
 import { z } from 'zod';
+import { internalSystemRequiredPricingCodes } from '../src/modules/pricing/internal-system-pricing.js';
 
 config({
   path: [resolve(process.cwd(), '.env'), resolve(process.cwd(), '../../.env')]
@@ -118,6 +120,72 @@ const pricingConfigs = [
   [ApplicationType.PLATAFORMA_WEB, 'WEB_PLATFORM_URGENCY_EXPRESS', 'Urgencia expressa', 'URGENCIA', PricingConfigType.MULTIPLIER, '1.6']
 ] as const;
 
+interface InternalSystemPricingSeedEntry {
+  applicationType: ApplicationType;
+  code: string;
+  name: string;
+  category: string;
+  configType: PricingConfigType;
+  value: string;
+  metadata?: Prisma.InputJsonObject;
+}
+
+const internalSystemBaseMetadata = {
+  includedAccessProfiles: 2,
+  includedDashboards: 1,
+  includedFeatures: [
+    'EMAIL_PASSWORD_AUTH',
+    'STANDARD_ROLES',
+    'BASIC_ADMINISTRATION',
+    'IN_APP_NOTIFICATIONS'
+  ]
+} satisfies Prisma.InputJsonObject;
+
+const internalSystemPricingConfigs = [
+  {
+    applicationType: ApplicationType.SISTEMA_INTERNO,
+    code: 'INTERNAL_SYSTEM_BASE',
+    name: 'Base de sistema interno',
+    category: 'BASE',
+    configType: PricingConfigType.FIXED_VALUE,
+    value: '5000',
+    metadata: internalSystemBaseMetadata
+  },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_MODULE_SIMPLE', name: 'Modulo simples', category: 'MODULOS', configType: PricingConfigType.UNIT_VALUE, value: '1200' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_MODULE_STANDARD', name: 'Modulo padrao', category: 'MODULOS', configType: PricingConfigType.UNIT_VALUE, value: '2500' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_MODULE_COMPLEX', name: 'Modulo complexo', category: 'MODULOS', configType: PricingConfigType.UNIT_VALUE, value: '4500' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_EXTRA_ACCESS_PROFILE', name: 'Perfil de acesso adicional', category: 'ACESSO', configType: PricingConfigType.UNIT_VALUE, value: '400' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_CUSTOM_PERMISSIONS', name: 'Permissoes personalizadas', category: 'ACESSO', configType: PricingConfigType.FIXED_VALUE, value: '2000' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_AUTH_MFA', name: 'Autenticacao multifator', category: 'AUTENTICACAO', configType: PricingConfigType.FIXED_VALUE, value: '1500' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_AUTH_CORPORATE_SSO', name: 'SSO corporativo', category: 'AUTENTICACAO', configType: PricingConfigType.FIXED_VALUE, value: '3500' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_WORKFLOW_SIMPLE', name: 'Workflow simples', category: 'PROCESSOS', configType: PricingConfigType.FIXED_VALUE, value: '1200' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_WORKFLOW_CUSTOM', name: 'Workflow personalizado', category: 'PROCESSOS', configType: PricingConfigType.FIXED_VALUE, value: '3000' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_DOCUMENT_BASIC_ATTACHMENTS', name: 'Anexos basicos', category: 'DOCUMENTOS', configType: PricingConfigType.FIXED_VALUE, value: '800' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_DOCUMENT_WORKFLOW', name: 'Fluxo documental', category: 'DOCUMENTOS', configType: PricingConfigType.FIXED_VALUE, value: '2500' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_EXTRA_DASHBOARD', name: 'Dashboard adicional', category: 'ANALISE', configType: PricingConfigType.UNIT_VALUE, value: '1200' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_REPORT', name: 'Relatorio', category: 'ANALISE', configType: PricingConfigType.UNIT_VALUE, value: '600' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_NOTIFICATION_EMAIL', name: 'Notificacoes por e-mail', category: 'NOTIFICACOES', configType: PricingConfigType.FIXED_VALUE, value: '800' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_NOTIFICATION_WHATSAPP_SMS', name: 'Notificacoes por WhatsApp ou SMS', category: 'NOTIFICACOES', configType: PricingConfigType.FIXED_VALUE, value: '1500' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_INTEGRATION_SIMPLE', name: 'Integracao simples', category: 'INTEGRACOES', configType: PricingConfigType.UNIT_VALUE, value: '500' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_INTEGRATION_STANDARD', name: 'Integracao padrao', category: 'INTEGRACOES', configType: PricingConfigType.UNIT_VALUE, value: '1200' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_INTEGRATION_COMPLEX', name: 'Integracao complexa', category: 'INTEGRACOES', configType: PricingConfigType.UNIT_VALUE, value: '2500' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_DATA_MIGRATION_STRUCTURED_IMPORT', name: 'Importacao estruturada', category: 'MIGRACAO', configType: PricingConfigType.UNIT_VALUE, value: '1000' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_DATA_MIGRATION_LEGACY', name: 'Migracao de sistema legado', category: 'MIGRACAO', configType: PricingConfigType.UNIT_VALUE, value: '3000' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_HOSTING_MJM_STANDARD_SETUP', name: 'Implantacao em hospedagem padrao', category: 'HOSPEDAGEM', configType: PricingConfigType.FIXED_VALUE, value: '800' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_HOSTING_MJM_MANAGED_SETUP', name: 'Implantacao em hospedagem gerenciada', category: 'HOSPEDAGEM', configType: PricingConfigType.FIXED_VALUE, value: '1500' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_HOSTING_MJM_STANDARD_MONTHLY', name: 'Hospedagem padrao mensal', category: 'HOSPEDAGEM', configType: PricingConfigType.FIXED_VALUE, value: '500' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_HOSTING_MJM_MANAGED_MONTHLY', name: 'Hospedagem gerenciada mensal', category: 'HOSPEDAGEM', configType: PricingConfigType.FIXED_VALUE, value: '1000' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_MAINTENANCE_ESSENTIAL_MONTHLY', name: 'Manutencao essencial mensal', category: 'MANUTENCAO', configType: PricingConfigType.FIXED_VALUE, value: '500' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_MAINTENANCE_STANDARD_MONTHLY', name: 'Manutencao padrao mensal', category: 'MANUTENCAO', configType: PricingConfigType.FIXED_VALUE, value: '1000' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_MAINTENANCE_CUSTOM_MONTHLY', name: 'Manutencao personalizada mensal', category: 'MANUTENCAO', configType: PricingConfigType.FIXED_VALUE, value: '2000' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_COMPLEXITY_NONE', name: 'Sem ajuste de complexidade', category: 'COMPLEXIDADE', configType: PricingConfigType.MULTIPLIER, value: '1' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_COMPLEXITY_MODERATE', name: 'Complexidade moderada', category: 'COMPLEXIDADE', configType: PricingConfigType.MULTIPLIER, value: '1.2' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_COMPLEXITY_HIGH', name: 'Complexidade alta', category: 'COMPLEXIDADE', configType: PricingConfigType.MULTIPLIER, value: '1.5' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_URGENCY_NORMAL', name: 'Urgencia normal', category: 'URGENCIA', configType: PricingConfigType.MULTIPLIER, value: '1' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_URGENCY_PRIORITY', name: 'Urgencia prioridade', category: 'URGENCIA', configType: PricingConfigType.MULTIPLIER, value: '1.3' },
+  { applicationType: ApplicationType.SISTEMA_INTERNO, code: 'INTERNAL_SYSTEM_URGENCY_EXPRESS', name: 'Urgencia expressa', category: 'URGENCIA', configType: PricingConfigType.MULTIPLIER, value: '1.6' }
+] satisfies InternalSystemPricingSeedEntry[];
+
 const legacyPricingCodes = [
   'WEBSITE_BASE_BLOG',
   'WEBSITE_BASE_ECOMMERCE',
@@ -137,7 +205,60 @@ const legacyPricingCodes = [
   'WEBSITE_COMPLEXITY_COMPLEX'
 ] as const;
 
+function assertUniquePricingCodes(): void {
+  const codes = [
+    ...pricingConfigs.map(([, code]) => code),
+    ...internalSystemPricingConfigs.map((config) => config.code)
+  ];
+  if (new Set(codes).size !== codes.length) {
+    throw new Error('Existem codigos de configuracao de preco duplicados no seed');
+  }
+}
+
+function assertInternalSystemPricingSeed(): void {
+  const seedCodes = new Set(internalSystemPricingConfigs.map((config) => config.code));
+  const missingCodes = internalSystemRequiredPricingCodes.filter((code) => !seedCodes.has(code));
+  if (missingCodes.length > 0) {
+    throw new Error(
+      `Configuracoes consumidas pelo motor ausentes no seed: ${missingCodes.join(', ')}`
+    );
+  }
+
+  const baseConfig = internalSystemPricingConfigs.find(
+    (config) => config.code === 'INTERNAL_SYSTEM_BASE'
+  );
+  if (baseConfig === undefined || !('metadata' in baseConfig)) {
+    throw new Error('INTERNAL_SYSTEM_BASE deve possuir metadata de franquias');
+  }
+
+  const includedFeatures = baseConfig.metadata.includedFeatures;
+  if (
+    baseConfig.metadata.includedAccessProfiles !== 2
+    || baseConfig.metadata.includedDashboards !== 1
+    || !Array.isArray(includedFeatures)
+    || includedFeatures.length === 0
+    || !includedFeatures.every(
+      (feature) => typeof feature === 'string' && feature.trim().length > 0
+    )
+  ) {
+    throw new Error('Metadata de franquias invalido em INTERNAL_SYSTEM_BASE');
+  }
+
+  const existingApplicationTypes = new Set(
+    pricingConfigs.map(([applicationType]) => applicationType)
+  );
+  if (
+    !existingApplicationTypes.has(ApplicationType.WEBSITE)
+    || !existingApplicationTypes.has(ApplicationType.PLATAFORMA_WEB)
+  ) {
+    throw new Error('O seed deve preservar as configuracoes de Website e Plataforma Web');
+  }
+}
+
 async function main(): Promise<void> {
+  assertUniquePricingCodes();
+  assertInternalSystemPricingSeed();
+
   const passwordHash = await argon2.hash(seedEnv.SEED_ADMIN_PASSWORD, {
     type: argon2.argon2id
   });
@@ -186,8 +307,34 @@ async function main(): Promise<void> {
     });
   }
 
+  for (const config of internalSystemPricingConfigs) {
+    await prisma.pricingConfig.upsert({
+      where: { code: config.code },
+      update: {
+        name: config.name,
+        applicationType: config.applicationType,
+        category: config.category,
+        configType: config.configType,
+        active: true,
+        ...('metadata' in config ? { metadata: config.metadata } : {})
+      },
+      create: {
+        code: config.code,
+        name: config.name,
+        applicationType: config.applicationType,
+        category: config.category,
+        configType: config.configType,
+        value: config.value,
+        active: true,
+        ...('metadata' in config ? { metadata: config.metadata } : {})
+      }
+    });
+  }
+
   console.info(`Administrador preparado: ${seedEnv.SEED_ADMIN_EMAIL}`);
-  console.info(`${pricingConfigs.length} configuracoes de preco preparadas`);
+  console.info(
+    `${pricingConfigs.length + internalSystemPricingConfigs.length} configuracoes de preco preparadas`
+  );
 }
 
 main()

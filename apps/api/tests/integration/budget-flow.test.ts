@@ -101,7 +101,41 @@ const pricingValues: Record<string, number> = {
   WEB_PLATFORM_COMPLEXITY_HIGH: 1.5,
   WEB_PLATFORM_URGENCY_NORMAL: 1,
   WEB_PLATFORM_URGENCY_PRIORITY: 1.3,
-  WEB_PLATFORM_URGENCY_EXPRESS: 1.6
+  WEB_PLATFORM_URGENCY_EXPRESS: 1.6,
+  INTERNAL_SYSTEM_BASE: 5000,
+  INTERNAL_SYSTEM_MODULE_SIMPLE: 1200,
+  INTERNAL_SYSTEM_MODULE_STANDARD: 2500,
+  INTERNAL_SYSTEM_MODULE_COMPLEX: 4500,
+  INTERNAL_SYSTEM_EXTRA_ACCESS_PROFILE: 400,
+  INTERNAL_SYSTEM_CUSTOM_PERMISSIONS: 2000,
+  INTERNAL_SYSTEM_AUTH_MFA: 1500,
+  INTERNAL_SYSTEM_AUTH_CORPORATE_SSO: 3500,
+  INTERNAL_SYSTEM_WORKFLOW_SIMPLE: 1200,
+  INTERNAL_SYSTEM_WORKFLOW_CUSTOM: 3000,
+  INTERNAL_SYSTEM_DOCUMENT_BASIC_ATTACHMENTS: 800,
+  INTERNAL_SYSTEM_DOCUMENT_WORKFLOW: 2500,
+  INTERNAL_SYSTEM_EXTRA_DASHBOARD: 1200,
+  INTERNAL_SYSTEM_REPORT: 600,
+  INTERNAL_SYSTEM_NOTIFICATION_EMAIL: 800,
+  INTERNAL_SYSTEM_NOTIFICATION_WHATSAPP_SMS: 1500,
+  INTERNAL_SYSTEM_INTEGRATION_SIMPLE: 500,
+  INTERNAL_SYSTEM_INTEGRATION_STANDARD: 1200,
+  INTERNAL_SYSTEM_INTEGRATION_COMPLEX: 2500,
+  INTERNAL_SYSTEM_DATA_MIGRATION_STRUCTURED_IMPORT: 1000,
+  INTERNAL_SYSTEM_DATA_MIGRATION_LEGACY: 3000,
+  INTERNAL_SYSTEM_HOSTING_MJM_STANDARD_SETUP: 800,
+  INTERNAL_SYSTEM_HOSTING_MJM_MANAGED_SETUP: 1500,
+  INTERNAL_SYSTEM_HOSTING_MJM_STANDARD_MONTHLY: 500,
+  INTERNAL_SYSTEM_HOSTING_MJM_MANAGED_MONTHLY: 1000,
+  INTERNAL_SYSTEM_MAINTENANCE_ESSENTIAL_MONTHLY: 500,
+  INTERNAL_SYSTEM_MAINTENANCE_STANDARD_MONTHLY: 1000,
+  INTERNAL_SYSTEM_MAINTENANCE_CUSTOM_MONTHLY: 2000,
+  INTERNAL_SYSTEM_COMPLEXITY_NONE: 1,
+  INTERNAL_SYSTEM_COMPLEXITY_MODERATE: 1.2,
+  INTERNAL_SYSTEM_COMPLEXITY_HIGH: 1.5,
+  INTERNAL_SYSTEM_URGENCY_NORMAL: 1,
+  INTERNAL_SYSTEM_URGENCY_PRIORITY: 1.3,
+  INTERNAL_SYSTEM_URGENCY_EXPRESS: 1.6
 };
 
 const unitPricingCodes = new Set([
@@ -130,8 +164,37 @@ const unitPricingCodes = new Set([
   'WEB_PLATFORM_INTEGRATION_STANDARD',
   'WEB_PLATFORM_INTEGRATION_COMPLEX',
   'WEB_PLATFORM_DATA_MIGRATION_STRUCTURED_IMPORT',
-  'WEB_PLATFORM_DATA_MIGRATION_LEGACY_MIGRATION'
+  'WEB_PLATFORM_DATA_MIGRATION_LEGACY_MIGRATION',
+  'INTERNAL_SYSTEM_MODULE_SIMPLE',
+  'INTERNAL_SYSTEM_MODULE_STANDARD',
+  'INTERNAL_SYSTEM_MODULE_COMPLEX',
+  'INTERNAL_SYSTEM_EXTRA_ACCESS_PROFILE',
+  'INTERNAL_SYSTEM_EXTRA_DASHBOARD',
+  'INTERNAL_SYSTEM_REPORT',
+  'INTERNAL_SYSTEM_INTEGRATION_SIMPLE',
+  'INTERNAL_SYSTEM_INTEGRATION_STANDARD',
+  'INTERNAL_SYSTEM_INTEGRATION_COMPLEX',
+  'INTERNAL_SYSTEM_DATA_MIGRATION_STRUCTURED_IMPORT',
+  'INTERNAL_SYSTEM_DATA_MIGRATION_LEGACY'
 ]);
+
+const internalSystemBaseMetadata = {
+  includedAccessProfiles: 2,
+  includedDashboards: 1,
+  includedFeatures: [
+    'EMAIL_PASSWORD_AUTH',
+    'STANDARD_ROLES',
+    'BASIC_ADMINISTRATION',
+    'IN_APP_NOTIFICATIONS'
+  ]
+};
+
+function applicationTypeForPricingCode(code: string) {
+  if (code.startsWith('WEBSITE_')) return 'WEBSITE' as const;
+  if (code.startsWith('WEB_PLATFORM_')) return 'PLATAFORMA_WEB' as const;
+  if (code.startsWith('INTERNAL_SYSTEM_')) return 'SISTEMA_INTERNO' as const;
+  throw new Error(`Prefixo de configuracao de preco desconhecido: ${code}`);
+}
 
 const completeInput = {
   websiteCategory: 'INSTITUCIONAL',
@@ -194,6 +257,40 @@ const completePlatformInput = {
   discountReason: 'Condicao comercial aprovada'
 } as const;
 
+const completeInternalSystemInput = {
+  modules: [
+    { name: 'Controle de estoque', complexity: 'SIMPLE' },
+    {
+      name: 'Ordens de servico',
+      description: 'Abertura, execucao e encerramento das ordens',
+      complexity: 'STANDARD'
+    },
+    { name: 'Aprovacoes internas', complexity: 'COMPLEX' }
+  ],
+  accessProfileCount: 4,
+  permissionModel: 'CUSTOM_PERMISSIONS',
+  additionalAuthentication: ['MFA'],
+  workflowLevel: 'CUSTOM',
+  documentManagement: 'DOCUMENT_WORKFLOW',
+  dashboardCount: 2,
+  reportCount: 2,
+  additionalNotificationChannels: ['EMAIL'],
+  integrations: [{
+    name: 'ERP corporativo',
+    description: 'Sincronizacao de estoque e ordens',
+    complexity: 'STANDARD'
+  }],
+  dataMigration: 'LEGACY_MIGRATION',
+  dataMigrationSourceCount: 2,
+  dataMigrationDescription: 'Banco anterior e planilha historica de estoque',
+  hostingPlan: 'MJM_MANAGED',
+  maintenancePlan: 'STANDARD',
+  complexityAdjustment: 'MODERATE',
+  complexityReason: 'Regras transversais entre estoque, ordens e aprovacoes',
+  discountPercentage: 10,
+  discountReason: 'Condicao comercial de contratacao conjunta'
+} as const;
+
 describe.sequential('fluxo de projetos e orcamentos', () => {
   let projectId: string;
   let firstBudgetId: string;
@@ -204,6 +301,9 @@ describe.sequential('fluxo de projetos e orcamentos', () => {
   let platformProjectId: string;
   let platformBudgetId: string;
   let platformItems: unknown;
+  let internalSystemProjectId: string;
+  let internalSystemBudgetId: string;
+  let internalSystemItems: unknown;
 
   beforeAll(async () => {
     await prisma.budgetItem.deleteMany();
@@ -226,13 +326,16 @@ describe.sequential('fluxo de projetos e orcamentos', () => {
       data: Object.entries(pricingValues).map(([code, value]) => ({
         code,
         name: code,
-        applicationType: code.startsWith('WEB_PLATFORM_') ? 'PLATAFORMA_WEB' : 'WEBSITE',
+        applicationType: applicationTypeForPricingCode(code),
         category: 'COMPONENTE',
         configType: code.includes('COMPLEXITY') || code.includes('URGENCY')
           ? 'MULTIPLIER'
           : unitPricingCodes.has(code) ? 'UNIT_VALUE' : 'FIXED_VALUE',
         value,
-        active: true
+        active: true,
+        ...(code === 'INTERNAL_SYSTEM_BASE'
+          ? { metadata: internalSystemBaseMetadata }
+          : {})
       }))
     });
 
@@ -606,6 +709,210 @@ describe.sequential('fluxo de projetos e orcamentos', () => {
     expect(historical.status).toBe(200);
     expect(historical.body.budget.finalTotal).toBe('40920.00');
     expect(historical.body.budget.items).toEqual(platformItems);
+  });
+
+  it('cria um projeto SISTEMA_INTERNO', async () => {
+    const response = await agent.post('/projects').send({
+      name: 'Sistema operacional interno',
+      clientName: 'Cliente Interno',
+      applicationType: 'SISTEMA_INTERNO'
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body.project.applicationType).toBe('SISTEMA_INTERNO');
+    internalSystemProjectId = response.body.project.id;
+  });
+
+  it('recusa escopos de Website, Plataforma Web e Marketplace em Sistema Interno', async () => {
+    const websitePayload = await agent
+      .post(`/projects/${internalSystemProjectId}/budgets`)
+      .send({ inputData: completeInput });
+    const platformPayload = await agent
+      .post(`/projects/${internalSystemProjectId}/budgets`)
+      .send({ inputData: completePlatformInput });
+    const marketplacePayload = await agent
+      .post(`/projects/${internalSystemProjectId}/budgets`)
+      .send({
+        inputData: {
+          ...completeInternalSystemInput,
+          platformCategory: 'MARKETPLACE',
+          paymentFeatures: ['MARKETPLACE_SPLIT']
+        }
+      });
+
+    expect(websitePayload.status).toBe(400);
+    expect(platformPayload.status).toBe(400);
+    expect(marketplacePayload.status).toBe(400);
+  });
+
+  it('cria orcamento de Sistema Interno e congela modulos, integracoes e franquias', async () => {
+    const response = await agent
+      .post(`/projects/${internalSystemProjectId}/budgets`)
+      .send({ inputData: completeInternalSystemInput });
+
+    expect(response.status).toBe(201);
+    expect(response.body.budget.project.applicationType).toBe('SISTEMA_INTERNO');
+    expect(response.body.budget.status).toBe('RASCUNHO');
+    expect(response.body.budget.versionNumber).toBe(1);
+    expect(response.body.budget.inputData).toEqual(completeInternalSystemInput);
+    expect(response.body.budget.subtotal).toBe('34900.00');
+    expect(response.body.budget.complexityMultiplier).toBe('1.2000');
+    expect(response.body.budget.urgencyMultiplier).toBe('1.0000');
+    expect(response.body.budget.discountPercentage).toBe('10.00');
+    expect(response.body.budget.finalTotal).toBe('37572.00');
+    expect(response.body.budget.monthlyRecurringTotal).toBe('2000.00');
+
+    const items = response.body.budget.items as Array<{
+      code: string;
+      name: string;
+      description: string | null;
+      quantity: number;
+      unitPrice: string;
+      totalPrice: string;
+      recurring: boolean;
+      displayOrder: number;
+      metadata: unknown;
+    }>;
+    expect(items).toHaveLength(17);
+    expect(items.every((item) => item.code.startsWith('INTERNAL_SYSTEM_'))).toBe(true);
+    expect(items.map((item) => item.displayOrder)).toEqual(
+      Array.from({ length: items.length }, (_, index) => index)
+    );
+
+    const base = items.find((item) => item.code === 'INTERNAL_SYSTEM_BASE');
+    expect(base?.metadata).toEqual({
+      ...internalSystemBaseMetadata,
+      informedAccessProfiles: 4,
+      informedDashboards: 2
+    });
+
+    const modules = items.filter((item) => item.code.startsWith('INTERNAL_SYSTEM_MODULE_'));
+    expect(modules).toHaveLength(3);
+    expect(modules.every((item) => item.quantity === 1)).toBe(true);
+    expect(modules.find((item) => item.code === 'INTERNAL_SYSTEM_MODULE_STANDARD'))
+      .toMatchObject({
+        name: expect.stringContaining('Ordens de servico'),
+        description: 'Abertura, execucao e encerramento das ordens',
+        unitPrice: '2500.00',
+        totalPrice: '2500.00'
+      });
+
+    const integration = items.find(
+      (item) => item.code === 'INTERNAL_SYSTEM_INTEGRATION_STANDARD'
+    );
+    expect(integration).toMatchObject({
+      name: expect.stringContaining('ERP corporativo'),
+      description: 'Sincronizacao de estoque e ordens',
+      quantity: 1,
+      unitPrice: '1200.00'
+    });
+    expect(items.find((item) => item.code === 'INTERNAL_SYSTEM_DATA_MIGRATION_LEGACY'))
+      .toMatchObject({ quantity: 2, totalPrice: '6000.00' });
+    expect(items.find(
+      (item) => item.code === 'INTERNAL_SYSTEM_HOSTING_MJM_MANAGED_SETUP'
+    )?.recurring).toBe(false);
+    expect(items.find(
+      (item) => item.code === 'INTERNAL_SYSTEM_HOSTING_MJM_MANAGED_MONTHLY'
+    )?.recurring).toBe(true);
+
+    internalSystemBudgetId = response.body.budget.id;
+    internalSystemItems = response.body.budget.items;
+  });
+
+  it('recusa payload de Sistema Interno em projetos Website e Plataforma Web', async () => {
+    const onWebsite = await agent
+      .post(`/projects/${projectId}/budgets`)
+      .send({ inputData: completeInternalSystemInput });
+    const onPlatform = await agent
+      .post(`/projects/${platformProjectId}/budgets`)
+      .send({ inputData: completeInternalSystemInput });
+
+    expect(onWebsite.status).toBe(400);
+    expect(onPlatform.status).toBe(400);
+  });
+
+  it('edita e recalcula atomicamente o rascunho de Sistema Interno', async () => {
+    const editedInput = { ...completeInternalSystemInput, reportCount: 3 };
+    const edited = await agent.patch(`/budgets/${internalSystemBudgetId}`).send({
+      inputData: editedInput,
+      notes: 'Relatorio adicional aprovado'
+    });
+
+    expect(edited.status).toBe(200);
+    expect(edited.body.budget.status).toBe('RASCUNHO');
+    expect(edited.body.budget.inputData.reportCount).toBe(3);
+    expect(edited.body.budget.notes).toBe('Relatorio adicional aprovado');
+    expect(edited.body.budget.subtotal).toBe('35500.00');
+    expect(edited.body.budget.finalTotal).toBe('38220.00');
+
+    await prisma.pricingConfig.update({
+      where: { code: 'INTERNAL_SYSTEM_MODULE_SIMPLE' },
+      data: { value: 1300 }
+    });
+    const recalculated = await agent.post(`/budgets/${internalSystemBudgetId}/recalculate`);
+
+    expect(recalculated.status).toBe(200);
+    expect(recalculated.body.budget.subtotal).toBe('35600.00');
+    expect(recalculated.body.budget.finalTotal).toBe('38328.00');
+    expect(recalculated.body.budget.monthlyRecurringTotal).toBe('2000.00');
+    const recalculatedItems = recalculated.body.budget.items as Array<{
+      code: string;
+      unitPrice: string;
+    }>;
+    expect(recalculatedItems.find(
+      (item) => item.code === 'INTERNAL_SYSTEM_MODULE_SIMPLE'
+    )?.unitPrice).toBe('1300.00');
+  });
+
+  it('finaliza sem recalcular e preserva historico e metadata de Sistema Interno', async () => {
+    const beforeFinalize = await agent.get(`/budgets/${internalSystemBudgetId}`);
+    expect(beforeFinalize.status).toBe(200);
+    const finalizedInputData = beforeFinalize.body.budget.inputData as unknown;
+
+    const finalized = await agent.post(`/budgets/${internalSystemBudgetId}/finalize`);
+    expect(finalized.status).toBe(200);
+    expect(finalized.body.budget.status).toBe('FINALIZADO');
+    expect(finalized.body.budget.items).toEqual(beforeFinalize.body.budget.items);
+
+    await prisma.pricingConfig.update({
+      where: { code: 'INTERNAL_SYSTEM_BASE' },
+      data: {
+        value: 5500,
+        metadata: {
+          includedAccessProfiles: 3,
+          includedDashboards: 2,
+          includedFeatures: ['EMAIL_PASSWORD_AUTH']
+        }
+      }
+    });
+
+    const historical = await agent.get(`/budgets/${internalSystemBudgetId}`);
+    expect(historical.status).toBe(200);
+    expect(historical.body.budget.inputData).toEqual(finalizedInputData);
+    expect(historical.body.budget.items).toEqual(beforeFinalize.body.budget.items);
+    expect(historical.body.budget.finalTotal).toBe('38328.00');
+
+    const forbiddenUpdate = await agent.patch(`/budgets/${internalSystemBudgetId}`).send({
+      notes: 'Alteracao indevida'
+    });
+    expect(forbiddenUpdate.status).toBe(409);
+    expect(forbiddenUpdate.body.error.code).toBe('BUDGET_NOT_EDITABLE');
+  });
+
+  it('cria nova versao de Sistema Interno com configuracoes atuais sem alterar a anterior', async () => {
+    const created = await agent
+      .post(`/projects/${internalSystemProjectId}/budgets`)
+      .send({ inputData: completeInternalSystemInput });
+
+    expect(created.status).toBe(201);
+    expect(created.body.budget.versionNumber).toBe(2);
+    expect(created.body.budget.finalTotal).not.toBe('38328.00');
+    expect(created.body.budget.items).not.toEqual(internalSystemItems);
+
+    const historical = await agent.get(`/budgets/${internalSystemBudgetId}`);
+    expect(historical.body.budget.versionNumber).toBe(1);
+    expect(historical.body.budget.status).toBe('FINALIZADO');
+    expect(historical.body.budget.finalTotal).toBe('38328.00');
   });
 
   it('impede alteracao direta de um orcamento finalizado', async () => {

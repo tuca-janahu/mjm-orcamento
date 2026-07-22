@@ -2,10 +2,15 @@ import type {
   ApplicationType,
   AuthUser,
   BudgetStatus,
+  InternalSystemBudgetInput,
   ProjectStatus,
   WebPlatformBudgetInput,
   WebsiteBudgetInput
 } from '@mjm/shared';
+
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
+export type JsonObject = { [key: string]: JsonValue };
 
 export interface ProjectSummary {
   id: string;
@@ -32,9 +37,13 @@ export interface BudgetItemDto {
   totalPrice: string;
   recurring: boolean;
   displayOrder: number;
+  metadata: JsonObject | null;
 }
 
-export type BudgetInputData = WebsiteBudgetInput | WebPlatformBudgetInput;
+export type BudgetInputData =
+  | WebsiteBudgetInput
+  | WebPlatformBudgetInput
+  | InternalSystemBudgetInput;
 
 export interface BudgetDto<TInputData extends BudgetInputData = BudgetInputData> {
   id: string;
