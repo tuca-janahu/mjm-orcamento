@@ -7,6 +7,7 @@ import {
   optionalReasonSchema,
   futureTargetLaunchDateSchema
 } from './common.js';
+import { hasDuplicateNormalizedNames } from '../../normalization.js';
 
 export const webPlatformCategories = [
   'CLIENT_PORTAL',
@@ -53,22 +54,12 @@ const describedScopedItemSchema = z.object({
   complexity: z.enum(integrationComplexities)
 }).strict();
 
-function normalizeScopedItemName(value: string): string {
-  return value
-    .normalize('NFKD')
-    .replace(/\p{Diacritic}/gu, '')
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toLocaleLowerCase('pt-BR');
-}
-
 function hasUniqueValues(values: readonly string[]): boolean {
   return new Set(values).size === values.length;
 }
 
 function hasUniqueScopedItemNames(values: ReadonlyArray<{ name: string }>): boolean {
-  const normalizedNames = values.map((value) => normalizeScopedItemName(value.name));
-  return hasUniqueValues(normalizedNames);
+  return !hasDuplicateNormalizedNames(values.map((value) => value.name));
 }
 
 export const webPlatformBudgetInputSchema = z.object({

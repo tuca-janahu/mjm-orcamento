@@ -7,8 +7,7 @@ import type {
   WebPlatformPricingOptions,
   WebPlatformUrgencyLevel
 } from './pricing.types.js';
-
-const MILLISECONDS_PER_DAY = 86_400_000;
+import { calculateUrgencyLevel, money } from './pricing-helpers.js';
 
 const baseCodes: Record<WebPlatformBudgetInput['platformCategory'], string> = {
   CLIENT_PORTAL: 'WEB_PLATFORM_BASE_CLIENT_PORTAL',
@@ -80,57 +79,6 @@ const urgencyCodes: Record<WebPlatformUrgencyLevel, string> = {
   EXPRESSO: 'WEB_PLATFORM_URGENCY_EXPRESS'
 };
 
-function money(value: Decimal.Value): Decimal {
-  return new Decimal(value).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
-}
-
-function dateOnlyTimestamp(value: string): number {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (match === null) throw new Error(`Data de lancamento invalida: ${value}`);
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const date = new Date(0);
-  date.setUTCFullYear(year, month - 1, day);
-  date.setUTCHours(0, 0, 0, 0);
-
-  if (
-    date.getUTCFullYear() !== year
-    || date.getUTCMonth() !== month - 1
-    || date.getUTCDate() !== day
-  ) {
-    throw new Error(`Data de lancamento invalida: ${value}`);
-  }
-
-  return date.getTime();
-}
-
-function referenceDateTimestamp(referenceDate: Date): number {
-  if (Number.isNaN(referenceDate.getTime())) throw new Error('Data de referencia invalida');
-  return Date.UTC(
-    referenceDate.getUTCFullYear(),
-    referenceDate.getUTCMonth(),
-    referenceDate.getUTCDate()
-  );
-}
-
-function urgencyFor(
-  targetLaunchDate: string | undefined,
-  referenceDate: Date
-): WebPlatformUrgencyLevel {
-  if (targetLaunchDate === undefined) return 'NORMAL';
-
-  const daysUntilLaunch = Math.round(
-    (dateOnlyTimestamp(targetLaunchDate) - referenceDateTimestamp(referenceDate))
-      / MILLISECONDS_PER_DAY
-  );
-
-  if (daysUntilLaunch >= 45) return 'NORMAL';
-  if (daysUntilLaunch >= 21) return 'PRIORIDADE';
-  return 'EXPRESSO';
-}
-
 export function calculateWebPlatformBudget(
   input: WebPlatformBudgetInput,
   configurations: PricingConfigValue[],
@@ -160,7 +108,6 @@ export function calculateWebPlatformBudget(
       quantity?: number;
       recurring?: boolean;
       adjustableService?: boolean;
-      outputCode?: string;
       name?: string;
       description?: string;
       metadata?: Record<string, string | number | boolean>;
@@ -173,7 +120,7 @@ export function calculateWebPlatformBudget(
     const recurring = options.recurring ?? false;
 
     items.push({
-      code: options.outputCode ?? code,
+      code,
       name: options.name ?? configuration.name,
       category: configuration.category,
       quantity,
@@ -308,7 +255,10 @@ export function calculateWebPlatformBudget(
       .reduce((total, item) => total.plus(item.totalPrice), new Decimal(0))
   );
   const complexityMultiplier = config(complexityCodes[input.complexityAdjustment]).value;
-  const urgency = urgencyFor(input.targetLaunchDate, options.referenceDate ?? new Date());
+  const urgency: WebPlatformUrgencyLevel = calculateUrgencyLevel(
+    input.targetLaunchDate,
+    options.referenceDate ?? new Date()
+  );
   const urgencyMultiplier = config(urgencyCodes[urgency]).value;
 
   if (complexityMultiplier.lte(0) || urgencyMultiplier.lte(0)) {

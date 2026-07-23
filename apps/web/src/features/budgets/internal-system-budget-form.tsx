@@ -6,6 +6,7 @@ import { FormProvider, type Resolver, useForm } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { api } from "../../lib/api";
+import { apiErrorMessage as budgetErrorMessage } from "../../lib/api-error";
 import type { BudgetDto, ProjectSummary } from "../../lib/api-types";
 import { formatCurrency } from "../../lib/format";
 import { ui } from "../../lib/ui";
@@ -18,10 +19,6 @@ import {
 } from "./internal-system-form/config";
 import { DataIntegrationsSection } from "./internal-system-form/data-integrations-section";
 import { StructureSection } from "./internal-system-form/structure-section";
-
-interface ApiErrorBody {
-  error?: { message?: string };
-}
 
 function FinancialSummary({
   budget,
@@ -254,12 +251,6 @@ export function InternalSystemBudgetForm() {
       }
       throw error;
     }
-  }
-
-  function budgetErrorMessage(error: unknown, fallback: string): string {
-    return axios.isAxiosError<ApiErrorBody>(error)
-      ? (error.response?.data.error?.message ?? fallback)
-      : fallback;
   }
 
   const saveDraft = handleSubmit(async (values) => {

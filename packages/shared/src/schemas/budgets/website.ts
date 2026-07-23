@@ -47,6 +47,15 @@ export const domainServices = [
   'CONFIGURATION_ONLY'
 ] as const;
 
+export const websiteTechnicalLimits = {
+  sectionCount: 200,
+  pageCount: 200,
+  uniqueLayoutCount: 200,
+  contentMigrationCount: 200,
+  simpleFormCount: 100,
+  advancedFormCount: 50
+} as const;
+
 const integrationSchema = z.object({
   name: z.string().trim().min(2).max(120),
   complexity: z.enum(integrationComplexities)
@@ -54,16 +63,16 @@ const integrationSchema = z.object({
 
 export const websiteBudgetInputSchema = z.object({
   websiteCategory: z.enum(websiteCategories),
-  sectionCount: z.number().int().min(1),
-  pageCount: z.number().int().min(1),
-  uniqueLayoutCount: z.number().int().min(1),
+  sectionCount: z.number().int().min(1).max(websiteTechnicalLimits.sectionCount),
+  pageCount: z.number().int().min(1).max(websiteTechnicalLimits.pageCount),
+  uniqueLayoutCount: z.number().int().min(1).max(websiteTechnicalLimits.uniqueLayoutCount),
   languageCount: z.number().int().min(1).max(10),
   contentResponsibility: z.enum(contentResponsibilities),
-  contentMigrationCount: z.number().int().min(0),
+  contentMigrationCount: z.number().int().min(0).max(websiteTechnicalLimits.contentMigrationCount),
   designApproach: z.enum(designApproaches),
   contentManagement: z.enum(contentManagementLevels),
-  simpleFormCount: z.number().int().min(0),
-  advancedFormCount: z.number().int().min(0),
+  simpleFormCount: z.number().int().min(0).max(websiteTechnicalLimits.simpleFormCount),
+  advancedFormCount: z.number().int().min(0).max(websiteTechnicalLimits.advancedFormCount),
   integrations: z.array(integrationSchema).max(20),
   additionalModules: z.array(z.enum(additionalWebsiteModules)),
   seoLevel: z.enum(seoLevels),

@@ -1,15 +1,20 @@
 import type {
   BudgetInputData,
   CreateBudgetEnvelope,
-  UpdateBudgetEnvelope
+  InternalSystemBudgetInput,
+  UpdateBudgetEnvelope,
+  WebPlatformBudgetInput,
+  WebsiteBudgetInput
 } from '@mjm/shared';
 import { isDeepStrictEqual } from 'node:util';
 import {
   internalSystemBudgetInputSchema,
+  targetLaunchDateSchema,
   webPlatformBudgetInputSchema,
   websiteBudgetInputSchema
 } from '@mjm/shared';
 import { BudgetStatus, Prisma, type ApplicationType } from '@prisma/client';
+import { z, ZodError } from 'zod';
 import { AppError } from '../../shared/errors/app-error.js';
 import { prisma } from '../../shared/prisma/client.js';
 import { lockProjectForUpdate } from '../../shared/prisma/locks.js';
@@ -69,33 +74,86 @@ function validateBudgetInput(
   );
 }
 
-async function calculate(
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeBudgetInputForComparison(
   applicationType: ApplicationType,
   rawInput: unknown
+): BudgetInputData {
+  if (!isRecord(rawInput) || !Object.hasOwn(rawInput, 'targetLaunchDate')) {
+    return validateBudgetInput(applicationType, rawInput);
+  }
+
+  const { targetLaunchDate: rawTargetLaunchDate, ...inputWithoutTargetLaunchDate } = rawInput;
+  const targetLaunchDate = targetLaunchDateSchema.parse(rawTargetLaunchDate);
+  const inputData = validateBudgetInput(applicationType, inputWithoutTargetLaunchDate);
+
+  return targetLaunchDate === undefined
+    ? inputData
+    : { ...inputData, targetLaunchDate };
+}
+
+function validateTemporalBudgetInput(
+  applicationType: ApplicationType,
+  inputData: BudgetInputData,
+  referenceDate: Date
+): void {
+  if (Number.isNaN(referenceDate.getTime())) {
+    throw new Error('Data de referencia invalida');
+  }
+
+  if (
+    (applicationType === 'PLATAFORMA_WEB' || applicationType === 'SISTEMA_INTERNO')
+    && inputData.targetLaunchDate !== undefined
+    && inputData.targetLaunchDate < referenceDate.toISOString().slice(0, 10)
+  ) {
+    throw new ZodError([{
+      code: z.ZodIssueCode.custom,
+      path: ['targetLaunchDate'],
+      message: 'A data prevista de lancamento nao pode estar no passado'
+    }]);
+  }
+}
+
+async function calculate(
+  applicationType: ApplicationType,
+  rawInput: unknown,
+  referenceDate = new Date()
 ): Promise<{ inputData: BudgetInputData; result: PricingResult }> {
+  const inputData = normalizeBudgetInputForComparison(applicationType, rawInput);
+  validateTemporalBudgetInput(applicationType, inputData, referenceDate);
+
   if (applicationType === 'WEBSITE') {
-    const inputData = websiteBudgetInputSchema.parse(rawInput);
     return {
       inputData,
-      result: calculateWebsiteBudget(inputData, await getActivePricing(applicationType))
+      result: calculateWebsiteBudget(inputData as WebsiteBudgetInput, await getActivePricing(applicationType), {
+        referenceDate
+      })
     };
   }
 
   if (applicationType === 'PLATAFORMA_WEB') {
-    const inputData = webPlatformBudgetInputSchema.parse(rawInput);
     return {
       inputData,
-      result: calculateWebPlatformBudget(inputData, await getActivePricing(applicationType))
+      result: calculateWebPlatformBudget(
+        inputData as WebPlatformBudgetInput,
+        await getActivePricing(applicationType),
+        {
+        referenceDate
+        }
+      )
     };
   }
 
   if (applicationType === 'SISTEMA_INTERNO') {
-    const inputData = internalSystemBudgetInputSchema.parse(rawInput);
     return {
       inputData,
       result: calculateInternalSystemBudget(
-        inputData,
-        await getActivePricing(applicationType)
+        inputData as InternalSystemBudgetInput,
+        await getActivePricing(applicationType),
+        { referenceDate }
       )
     };
   }
@@ -227,7 +285,10 @@ export async function createBudget(
   idempotencyKey?: string
 ) {
   const project = await requireProject(projectId);
-  const normalizedInput = validateBudgetInput(project.applicationType, input.inputData);
+  const normalizedInput = normalizeBudgetInputForComparison(
+    project.applicationType,
+    input.inputData
+  );
   const normalizedNotes = input.notes === undefined ? null : nullableNotes(input.notes);
 
   if (idempotencyKey !== undefined) {
@@ -247,7 +308,7 @@ export async function createBudget(
     }
   }
 
-  const calculation = await calculate(project.applicationType, input.inputData);
+  const calculation = await calculate(project.applicationType, normalizedInput, new Date());
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {

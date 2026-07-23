@@ -134,4 +134,21 @@ describe('autenticacao', () => {
     expect(response.status).toBe(403);
     expect(response.body.error.code).toBe('INVALID_ORIGIN');
   });
+
+  it('normaliza JSON inválido e corpo maior que o limite', async () => {
+    const invalidJson = await request(app)
+      .post('/auth/login')
+      .set('Content-Type', 'application/json')
+      .send('{"email":');
+
+    expect(invalidJson.status).toBe(400);
+    expect(invalidJson.body.error.code).toBe('INVALID_JSON');
+
+    const oversizedBody = await request(app)
+      .post('/auth/login')
+      .send({ email: `${'a'.repeat(110_000)}@example.com`, password: 'correct-password' });
+
+    expect(oversizedBody.status).toBe(413);
+    expect(oversizedBody.body.error.code).toBe('BODY_TOO_LARGE');
+  });
 });

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   budgetInputDataSchema,
-  createBudgetInputSchema,
   getBudgetInputSchema,
   internalSystemBudgetInputSchema,
   supportedBudgetApplicationTypes,
@@ -362,13 +361,6 @@ describe('internal system budget input dispatch', () => {
 
   it('accepts internal-system data in the generic schema', () => {
     expect(budgetInputDataSchema.safeParse(validInput).success).toBe(true);
-  });
-
-  it('keeps notes in the budget envelope rather than in internal-system inputData', () => {
-    expect(createBudgetInputSchema.safeParse({
-      inputData: validInput,
-      notes: 'Premissas comerciais gerais'
-    }).success).toBe(true);
   });
 
   it('rejects internal-system data for Website and Plataforma Web', () => {

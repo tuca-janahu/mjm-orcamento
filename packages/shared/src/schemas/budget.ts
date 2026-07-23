@@ -20,7 +20,7 @@ export const budgetInputDataSchema = z.union([
   internalSystemBudgetInputSchema
 ]);
 
-export const budgetInputSchemas = {
+const budgetInputSchemas = {
   WEBSITE: websiteBudgetInputSchema,
   PLATAFORMA_WEB: webPlatformBudgetInputSchema,
   SISTEMA_INTERNO: internalSystemBudgetInputSchema
@@ -31,16 +31,6 @@ export type SupportedBudgetApplicationType = (typeof supportedBudgetApplicationT
 export function getBudgetInputSchema(applicationType: SupportedBudgetApplicationType) {
   return budgetInputSchemas[applicationType];
 }
-
-export const createBudgetInputSchema = z.object({
-  inputData: budgetInputDataSchema,
-  notes: z.string().trim().max(4_000).optional()
-}).strict();
-
-export const updateBudgetInputSchema = createBudgetInputSchema.partial().refine(
-  (value) => Object.keys(value).length > 0,
-  'Informe ao menos um campo'
-);
 
 export const createBudgetEnvelopeSchema = z.object({
   inputData: z.unknown(),

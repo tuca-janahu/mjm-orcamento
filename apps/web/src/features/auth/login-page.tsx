@@ -1,15 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginInputSchema, type LoginInput } from "@mjm/shared";
-import axios from "axios";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router";
 import { BrandMark } from "../../components/brand-mark";
 import { api } from "../../lib/api";
-
-interface ApiErrorBody {
-  error?: { message?: string };
-}
+import { apiErrorMessage } from "../../lib/api-error";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -26,13 +22,7 @@ export function LoginPage() {
       await api.post("/auth/login", values);
       void navigate("/");
     } catch (error) {
-      if (axios.isAxiosError<ApiErrorBody>(error)) {
-        setServerError(
-          error.response?.data?.error?.message ?? "Nao foi possivel entrar",
-        );
-      } else {
-        setServerError("Nao foi possivel entrar");
-      }
+      setServerError(apiErrorMessage(error, "Nao foi possivel entrar"));
     }
   });
 

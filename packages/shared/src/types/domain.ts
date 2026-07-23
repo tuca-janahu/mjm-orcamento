@@ -2,7 +2,6 @@ import type { z } from 'zod';
 import type {
   budgetInputDataSchema,
   createBudgetEnvelopeSchema,
-  createBudgetInputSchema,
   internalSystemBudgetInputSchema,
   updateBudgetEnvelopeSchema,
   webPlatformBudgetInputSchema,
@@ -16,6 +15,5 @@ export type InternalSystemBudgetInput = z.infer<typeof internalSystemBudgetInput
 export type BudgetInputData = z.infer<typeof budgetInputDataSchema>;
 export type CreateBudgetEnvelope = z.infer<typeof createBudgetEnvelopeSchema>;
 export type UpdateBudgetEnvelope = z.infer<typeof updateBudgetEnvelopeSchema>;
-export type CreateBudgetInput = z.infer<typeof createBudgetInputSchema>;
 export type CreateProjectInput = z.infer<typeof createProjectInputSchema>;
 export type UpdateProjectInput = z.infer<typeof updateProjectInputSchema>;

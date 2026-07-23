@@ -6,6 +6,7 @@ import { FormProvider, useForm } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { api } from "../../lib/api";
+import { apiErrorMessage as budgetErrorMessage } from "../../lib/api-error";
 import type { BudgetDto, ProjectSummary } from "../../lib/api-types";
 import { ui } from "../../lib/ui";
 import { CommercialSection } from "./web-platform-form/commercial-section";
@@ -18,10 +19,6 @@ import { IntegrationsSection } from "./web-platform-form/integrations-section";
 import { ProductSection } from "./web-platform-form/product-section";
 import { ResourcesSection } from "./web-platform-form/resources-section";
 import { StructureSection } from "./web-platform-form/structure-section";
-
-interface ApiErrorBody {
-  error?: { message?: string };
-}
 
 export function WebPlatformBudgetForm() {
   const { projectId, id } = useParams();
@@ -114,12 +111,6 @@ export function WebPlatformBudgetForm() {
       }
       throw error;
     }
-  }
-
-  function budgetErrorMessage(error: unknown, fallback: string): string {
-    return axios.isAxiosError<ApiErrorBody>(error)
-      ? (error.response?.data.error?.message ?? fallback)
-      : fallback;
   }
 
   const saveDraft = handleSubmit(async (values) => {

@@ -233,14 +233,17 @@ components:
         sectionCount:
           type: integer
           minimum: 1
+          maximum: 200
           description: Quantidade de secoes da landing page; ignorada nas demais categorias.
         pageCount:
           type: integer
           minimum: 1
+          maximum: 200
           description: Quantidade total de paginas; ignorada para landing pages.
         uniqueLayoutCount:
           type: integer
           minimum: 1
+          maximum: 200
           description: Quantidade de layouts distintos; ignorada para landing pages e limitada a pageCount nas demais categorias.
         languageCount:
           type: integer
@@ -252,6 +255,7 @@ components:
         contentMigrationCount:
           type: integer
           minimum: 0
+          maximum: 200
           description: Obrigatorio e maior que zero para MJM_MIGRATES_EXISTING; deve ser zero nos demais casos.
         designApproach:
           type: string
@@ -259,8 +263,8 @@ components:
         contentManagement:
           type: string
           enum: [NONE, STANDARD_CMS, CUSTOM_ADMIN]
-        simpleFormCount: { type: integer, minimum: 0 }
-        advancedFormCount: { type: integer, minimum: 0 }
+        simpleFormCount: { type: integer, minimum: 0, maximum: 100 }
+        advancedFormCount: { type: integer, minimum: 0, maximum: 50 }
         integrations:
           type: array
           maxItems: 20

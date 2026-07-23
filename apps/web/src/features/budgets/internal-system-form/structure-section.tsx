@@ -3,7 +3,7 @@ import { useFieldArray, useFormContext } from "react-hook-form";
 import { ui } from "../../../lib/ui";
 import type { InternalSystemBudgetFormValues } from "./config";
 import { internalSystemOptionLabel } from "./config";
-import { FieldError, SectionHeading } from "./form-ui";
+import { FieldError, SectionHeading } from "../budget-form-ui";
 
 export function StructureSection() {
   const {

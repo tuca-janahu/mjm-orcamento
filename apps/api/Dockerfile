@@ -5,9 +5,11 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* tsconfig.base.json eslint.
 COPY apps/api/package.json apps/api/package.json
 COPY packages/shared/package.json packages/shared/package.json
 RUN pnpm install --frozen-lockfile
-COPY apps/api apps/api
 COPY packages/shared packages/shared
-RUN pnpm --filter @mjm/api db:generate && pnpm --filter @mjm/api build
+COPY apps/api apps/api
+RUN pnpm --filter @mjm/shared build \
+  && pnpm --filter @mjm/api db:generate \
+  && pnpm --filter @mjm/api build
 
 FROM node:22-alpine AS runtime
 RUN corepack enable
@@ -21,4 +23,3 @@ COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/prisma ./apps/api/prisma
 COPY --from=build /app/packages/shared ./packages/shared
 CMD ["node", "apps/api/dist/app/server.js"]
-

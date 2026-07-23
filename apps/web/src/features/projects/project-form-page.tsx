@@ -1,19 +1,16 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { applicationTypes, createProjectInputSchema } from "@mjm/shared";
-import axios from "axios";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
 import { api } from "../../lib/api";
+import { apiErrorMessage } from "../../lib/api-error";
 import type { ProjectSummary } from "../../lib/api-types";
 import { labelFromEnum } from "../../lib/format";
 import type { z } from "zod";
 import { ui } from "../../lib/ui";
 
 type ProjectFormValues = z.input<typeof createProjectInputSchema>;
-interface ApiErrorBody {
-  error?: { message?: string };
-}
 
 export function ProjectFormPage() {
   const navigate = useNavigate();
@@ -37,10 +34,7 @@ export function ProjectFormPage() {
       void navigate(`/projects/${data.project.id}`);
     } catch (error) {
       setServerError(
-        axios.isAxiosError<ApiErrorBody>(error)
-          ? (error.response?.data.error?.message ??
-              "Não foi possível criar o projeto.")
-          : "Não foi possível criar o projeto.",
+        apiErrorMessage(error, "Não foi possível criar o projeto."),
       );
     }
   });

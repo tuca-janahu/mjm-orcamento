@@ -1,8 +1,8 @@
-import axios from "axios";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { api } from "../../lib/api";
+import { apiErrorMessage } from "../../lib/api-error";
 import type { BudgetDto } from "../../lib/api-types";
 import { formatCurrency, formatDate, labelFromEnum } from "../../lib/format";
 import { statusBadgeClass, ui } from "../../lib/ui";
@@ -10,9 +10,6 @@ import { InternalSystemBudgetScope } from "./internal-system-budget-scope";
 import { WebPlatformBudgetScope } from "./web-platform-budget-scope";
 import { WebsiteBudgetScope } from "./website-budget-scope";
 
-interface ApiErrorBody {
-  error?: { message?: string };
-}
 
 function ScopeDetails({ budget }: { budget: BudgetDto }) {
   if (
@@ -96,10 +93,7 @@ export function BudgetDetailPage() {
       }
 
       const message =
-        axios.isAxiosError<ApiErrorBody>(caught)
-          ? (caught.response?.data.error?.message ??
-              "Não foi possível atualizar o orçamento.")
-          : "Não foi possível atualizar o orçamento.";
+        apiErrorMessage(caught, "Não foi possível atualizar o orçamento.");
       if (kind === "finalize") setFinalizeError(message);
       else setError(message);
     } finally {

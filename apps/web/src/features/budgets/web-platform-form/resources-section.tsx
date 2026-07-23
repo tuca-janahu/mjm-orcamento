@@ -10,7 +10,8 @@ import { useFormContext } from "react-hook-form";
 import { ui } from "../../../lib/ui";
 import type { WebPlatformBudgetFormValues } from "./config";
 import { platformOptionLabel } from "./config";
-import { CheckboxGrid, FieldError, SectionHeading } from "./form-ui";
+import { FieldError, SectionHeading } from "../budget-form-ui";
+import { CheckboxGrid } from "./form-ui";
 
 export function ResourcesSection() {
   const {

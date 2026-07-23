@@ -57,10 +57,6 @@ export async function getActivePricing(
   });
 }
 
-export async function getActiveWebsitePricing(): Promise<PricingConfigValue[]> {
-  return getActivePricing('WEBSITE');
-}
-
 export async function listActivePricingConfigs() {
   const configs = await prisma.pricingConfig.findMany({
     where: { active: true },

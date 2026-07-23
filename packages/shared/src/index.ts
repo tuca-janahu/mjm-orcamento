@@ -1,4 +1,8 @@
 export { loginInputSchema } from './schemas/auth.js';
+export {
+  hasDuplicateNormalizedNames,
+  normalizeComparableName
+} from './normalization.js';
 export type { AuthUser, LoginInput } from './types/auth.js';
 export {
   applicationTypes,
@@ -13,12 +17,10 @@ export type {
 export {
   additionalWebsiteModules,
   budgetInputDataSchema,
-  budgetInputSchemas,
   complexityAdjustments,
   contentManagementLevels,
   contentResponsibilities,
   createBudgetEnvelopeSchema,
-  createBudgetInputSchema,
   designApproaches,
   domainServices,
   hostingPlans,
@@ -30,12 +32,11 @@ export {
   internalSystemDocumentManagementLevels,
   internalSystemNotificationChannels,
   internalSystemPermissionModels,
-  internalSystemScopedItemSchema,
   internalSystemWorkflowLevels,
   maintenancePlans,
   seoLevels,
+  targetLaunchDateSchema,
   updateBudgetEnvelopeSchema,
-  updateBudgetInputSchema,
   webPlatformAccountStructures,
   webPlatformAuditLevels,
   webPlatformAuthenticationFeatures,
@@ -49,7 +50,8 @@ export {
   webPlatformPaymentFeatures,
   supportedBudgetApplicationTypes,
   websiteBudgetInputSchema,
-  websiteCategories
+  websiteCategories,
+  websiteTechnicalLimits
 } from './schemas/budget.js';
 export type { SupportedBudgetApplicationType } from './schemas/budget.js';
 export {
@@ -59,7 +61,6 @@ export {
 export type {
   BudgetInputData,
   CreateBudgetEnvelope,
-  CreateBudgetInput,
   CreateProjectInput,
   InternalSystemBudgetInput,
   UpdateProjectInput,

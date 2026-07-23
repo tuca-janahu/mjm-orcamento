@@ -12,6 +12,7 @@ import {
   seoLevels,
   websiteBudgetInputSchema,
   websiteCategories,
+  websiteTechnicalLimits,
   type WebsiteBudgetInput,
 } from "@mjm/shared";
 import axios from "axios";
@@ -19,7 +20,9 @@ import { useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router";
 import { ConfirmDialog } from "../../components/confirm-dialog";
+import { FieldError } from "./budget-form-ui";
 import { api } from "../../lib/api";
+import { apiErrorMessage as budgetErrorMessage } from "../../lib/api-error";
 import type { BudgetDto, ProjectSummary } from "../../lib/api-types";
 import { labelFromEnum } from "../../lib/format";
 import { ui } from "../../lib/ui";
@@ -91,14 +94,6 @@ const optionLabels: Record<string, string> = {
 
 function optionLabel(value: string): string {
   return optionLabels[value] ?? labelFromEnum(value);
-}
-
-function FieldError({ message }: { message: string | undefined }) {
-  return message ? <small className={ui.fieldError}>{message}</small> : null;
-}
-
-interface ApiErrorBody {
-  error?: { message?: string };
 }
 
 export function WebsiteBudgetForm() {
@@ -203,12 +198,6 @@ export function WebsiteBudgetForm() {
       }
       throw error;
     }
-  }
-
-  function budgetErrorMessage(error: unknown, fallback: string): string {
-    return axios.isAxiosError<ApiErrorBody>(error)
-      ? (error.response?.data.error?.message ?? fallback)
-      : fallback;
   }
 
   const saveDraft = handleSubmit(async (values) => {
@@ -370,6 +359,7 @@ export function WebsiteBudgetForm() {
                   className={ui.input}
                   type="number"
                   min="1"
+                  max={websiteTechnicalLimits.sectionCount}
                   {...register("inputData.sectionCount", {
                     valueAsNumber: true,
                   })}
@@ -384,6 +374,7 @@ export function WebsiteBudgetForm() {
                     className={ui.input}
                     type="number"
                     min="1"
+                    max={websiteTechnicalLimits.pageCount}
                     {...register("inputData.pageCount", {
                       valueAsNumber: true,
                     })}
@@ -396,6 +387,7 @@ export function WebsiteBudgetForm() {
                     className={ui.input}
                     type="number"
                     min="1"
+                    max={websiteTechnicalLimits.uniqueLayoutCount}
                     {...register("inputData.uniqueLayoutCount", {
                       valueAsNumber: true,
                     })}
@@ -472,6 +464,7 @@ export function WebsiteBudgetForm() {
                   className={ui.input}
                   type="number"
                   min="1"
+                  max={websiteTechnicalLimits.contentMigrationCount}
                   {...register("inputData.contentMigrationCount", {
                     valueAsNumber: true,
                   })}
@@ -540,6 +533,7 @@ export function WebsiteBudgetForm() {
                   className={ui.input}
                   type="number"
                   min="0"
+                  max={websiteTechnicalLimits.simpleFormCount}
                   {...register("inputData.simpleFormCount", {
                     valueAsNumber: true,
                   })}
@@ -554,6 +548,7 @@ export function WebsiteBudgetForm() {
                   className={ui.input}
                   type="number"
                   min="0"
+                  max={websiteTechnicalLimits.advancedFormCount}
                   {...register("inputData.advancedFormCount", {
                     valueAsNumber: true,
                   })}

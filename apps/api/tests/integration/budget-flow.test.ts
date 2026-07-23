@@ -7,6 +7,7 @@ import { createApp } from '../../src/app/create-app.js';
 const prisma = new PrismaClient();
 const app = createApp();
 const agent = request.agent(app);
+const workspaceAgent = request.agent(app);
 
 const pricingValues: Record<string, number> = {
   WEBSITE_BASE_LANDING_PAGE: 2500,
@@ -322,6 +323,16 @@ describe.sequential('fluxo de projetos e orcamentos', () => {
       }
     });
 
+    await prisma.user.create({
+      data: {
+        name: 'Colaborador Teste',
+        email: 'workspace-test@example.com',
+        passwordHash: await argon2.hash('correct-password', { type: argon2.argon2id }),
+        role: 'USER',
+        active: true
+      }
+    });
+
     await prisma.pricingConfig.createMany({
       data: Object.entries(pricingValues).map(([code, value]) => ({
         code,
@@ -344,6 +355,12 @@ describe.sequential('fluxo de projetos e orcamentos', () => {
       password: 'correct-password'
     });
     expect(login.status).toBe(200);
+
+    const workspaceLogin = await workspaceAgent.post('/auth/login').send({
+      email: 'workspace-test@example.com',
+      password: 'correct-password'
+    });
+    expect(workspaceLogin.status).toBe(200);
   });
 
   afterAll(async () => {
@@ -369,6 +386,30 @@ describe.sequential('fluxo de projetos e orcamentos', () => {
     const listed = await agent.get('/projects');
     expect(listed.status).toBe(200);
     expect(listed.body.projects).toHaveLength(1);
+  });
+
+  it('mantem o workspace compartilhado para outro usuario autenticado', async () => {
+    const response = await workspaceAgent.get('/projects');
+
+    expect(response.status).toBe(200);
+    expect(response.body.projects).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: projectId })
+    ]));
+  });
+
+  it('normaliza UUIDs de rota e chaves de idempotência inválidos', async () => {
+    const invalidRoute = await agent.get('/projects/not-a-uuid');
+
+    expect(invalidRoute.status).toBe(400);
+    expect(invalidRoute.body.error.code).toBe('INVALID_ROUTE_PARAMETER');
+
+    const invalidIdempotencyKey = await agent
+      .post(`/projects/${projectId}/budgets`)
+      .set('Idempotency-Key', 'not-a-uuid')
+      .send({ inputData: completeInput });
+
+    expect(invalidIdempotencyKey.status).toBe(400);
+    expect(invalidIdempotencyKey.body.error.code).toBe('INVALID_IDEMPOTENCY_KEY');
   });
 
   it('consulta e edita o projeto', async () => {
@@ -404,6 +445,18 @@ describe.sequential('fluxo de projetos e orcamentos', () => {
       where: { projectId: project.body.project.id }
     })).toBe(1);
 
+    await prisma.pricingConfig.update({
+      where: { code: 'WEBSITE_BASE_INSTITUCIONAL' },
+      data: { value: 3800 }
+    });
+    const replayAfterPricingChange = await createRequest();
+    expect(replayAfterPricingChange.status).toBe(201);
+    expect(replayAfterPricingChange.body.budget.finalTotal).toBe(first.body.budget.finalTotal);
+    await prisma.pricingConfig.update({
+      where: { code: 'WEBSITE_BASE_INSTITUCIONAL' },
+      data: { value: 2800 }
+    });
+
     const conflictingReplay = await agent
       .post(`/projects/${project.body.project.id}/budgets`)
       .set('Idempotency-Key', key)
@@ -411,9 +464,110 @@ describe.sequential('fluxo de projetos e orcamentos', () => {
 
     expect(conflictingReplay.status).toBe(409);
     expect(conflictingReplay.body.error.code).toBe('BUDGET_IDEMPOTENCY_KEY_REUSED');
+
+    const conflictingNotes = await agent
+      .post(`/projects/${project.body.project.id}/budgets`)
+      .set('Idempotency-Key', key)
+      .send({ inputData: completeInput, notes: 'Outra premissa' });
+    expect(conflictingNotes.status).toBe(409);
+
+    const conflictingUser = await workspaceAgent
+      .post(`/projects/${project.body.project.id}/budgets`)
+      .set('Idempotency-Key', key)
+      .send({ inputData: completeInput });
+    expect(conflictingUser.status).toBe(409);
+
+    const otherProject = await agent.post('/projects').send({
+      name: 'Projeto idempotente alternativo',
+      applicationType: 'WEBSITE'
+    });
+    const conflictingProject = await agent
+      .post(`/projects/${otherProject.body.project.id}/budgets`)
+      .set('Idempotency-Key', key)
+      .send({ inputData: completeInput });
+    expect(conflictingProject.status).toBe(409);
     expect(await prisma.budget.count({
       where: { projectId: project.body.project.id }
     })).toBe(1);
+  });
+
+  it('reaproveita uma chave quando a data persistida ja ficou no passado', async () => {
+    const project = await agent.post('/projects').send({
+      name: 'Projeto plataforma com replay historico',
+      applicationType: 'PLATAFORMA_WEB'
+    });
+    const inputData = {
+      platformCategory: 'CLIENT_PORTAL',
+      accountStructure: 'SINGLE_ORGANIZATION',
+      screenCount: 5,
+      userRoleCount: 2,
+      languageCount: 1,
+      designApproach: 'CLIENT_PROVIDED',
+      functionalModules: [{ name: 'Area do cliente', complexity: 'SIMPLE' }],
+      adminBackoffice: 'NONE',
+      dashboardCount: 0,
+      reportCount: 0,
+      additionalAuthentication: [],
+      paymentFeatures: [],
+      notificationChannels: [],
+      fileHandling: 'NONE',
+      auditLevel: 'NONE',
+      integrations: [],
+      dataMigration: 'NONE',
+      dataMigrationSourceCount: 0,
+      hostingPlan: 'CLIENT_MANAGED',
+      maintenancePlan: 'NONE',
+      targetLaunchDate: '2020-01-01',
+      complexityAdjustment: 'NONE',
+      discountPercentage: 0
+    };
+    const key = '00000000-0000-4000-8000-000000000011';
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { email: 'budget-test@example.com' }
+    });
+
+    await prisma.budget.create({
+      data: {
+        id: key,
+        projectId: project.body.project.id,
+        versionNumber: 1,
+        inputData,
+        subtotal: 7200,
+        complexityMultiplier: 1,
+        urgencyMultiplier: 1,
+        discountPercentage: 0,
+        finalTotal: 7200,
+        monthlyRecurringTotal: 0,
+        createdById: user.id
+      }
+    });
+
+    const replay = await agent
+      .post(`/projects/${project.body.project.id}/budgets`)
+      .set('Idempotency-Key', key)
+      .send({ inputData });
+
+    expect(replay.status).toBe(201);
+    expect(replay.body.budget.id).toBe(key);
+    expect(replay.body.budget.inputData.targetLaunchDate).toBe('2020-01-01');
+  });
+
+  it('reaproveita uma unica criacao para duas requisicoes simultaneas com a mesma chave', async () => {
+    const project = await agent.post('/projects').send({
+      name: 'Projeto concorrente idempotente',
+      applicationType: 'WEBSITE'
+    });
+    const key = '00000000-0000-4000-8000-000000000012';
+    const create = () => agent
+      .post(`/projects/${project.body.project.id}/budgets`)
+      .set('Idempotency-Key', key)
+      .send({ inputData: completeInput });
+
+    const [first, second] = await Promise.all([create(), create()]);
+    expect([first.status, second.status]).toEqual([201, 201]);
+    expect(first.body.budget.id).toBe(key);
+    expect(second.body.budget.id).toBe(key);
+    expect(await prisma.budget.count({ where: { projectId: project.body.project.id } })).toBe(1);
   });
 
   it('cria o primeiro orcamento com o novo escopo completo', async () => {

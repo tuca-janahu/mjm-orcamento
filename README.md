@@ -51,7 +51,7 @@ pnpm install
 Copy-Item .env.example .env
 ```
 
-Preencha todas as variaveis obrigatorias do `.env`. Nao use as credenciais do exemplo em ambientes reais.
+Preencha todas as variaveis obrigatorias do `.env`, incluindo `TEST_DATABASE_URL`. Nao use as credenciais do exemplo em ambientes reais.
 
 ## Banco de dados
 
@@ -69,7 +69,7 @@ pnpm db:migrate:deploy
 pnpm db:seed
 ```
 
-O seed exige `SEED_ADMIN_NAME`, `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD`. Ele e idempotente para o e-mail informado e para as configuracoes de preco WEBSITE, PLATAFORMA_WEB e SISTEMA_INTERNO. Configuracoes ja existentes preservam o valor comercial ajustado no banco; o seed atualiza seus dados descritivos, estado ativo e, para a base de Sistema Interno, as franquias aprovadas em metadata.
+O seed exige `SEED_ADMIN_NAME`, `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD`. Na primeira execucao ele cria o administrador e o catalogo de preco. Em reruns, contas existentes preservam senha, papel e estado ativo; configuracoes existentes preservam valor comercial, estado ativo e metadata operacional. O catalogo e validado antes de ser aplicado em uma transacao.
 
 O arquivo `apps/api/prisma.config.ts` carrega o `.env` da raiz para que os comandos Prisma possam ser executados pelos scripts do monorepo sem duplicar variaveis dentro de `apps/api`.
 
@@ -107,9 +107,15 @@ pnpm build
 
 O build do frontend nao depende do banco de dados. A autenticacao usa Prisma isolado por mock e o fluxo de orcamentos usa `mjm_orcamentos_test`, separado do banco de desenvolvimento.
 
+Os testes de integracao exigem `TEST_DATABASE_URL` apontando exatamente para `mjm_orcamentos_test` em `localhost:5434`; a suite recusa URLs ausentes, de desenvolvimento ou fora desse padrao antes de limpar tabelas.
+
 ## Autenticacao
 
 A API usa um JWT assinado, armazenado em cookie HttpOnly. O token contem somente o identificador do usuario e sua expiracao. Em cada rota privada, a API valida o token e consulta o usuario para confirmar que ele continua ativo.
+
+### Politica atual de acesso
+
+O produto opera atualmente como um workspace interno compartilhado: qualquer usuario autenticado pode consultar e operar os projetos, orcamentos e configuracoes de preco disponiveis no workspace. `responsibleUserId` registra o responsavel pelo projeto, mas ainda nao restringe acesso. Ownership e RBAC sao decisoes futuras e nao devem ser inferidos do comportamento atual.
 
 O logout remove o cookie no navegador. Como a autenticacao e stateless, nao existe revogacao individual antecipada: um token copiado permanece valido ate expirar. Por isso, a duracao e configuravel por `JWT_EXPIRES_IN_SECONDS`.
 
@@ -127,6 +133,10 @@ Protecoes iniciais:
 ## Precificacao suportada
 
 Cada tipo possui schema, configuracoes e motor proprios. O backend carrega o tipo do projeto antes de validar o JSON do orcamento e o confirma novamente na transacao de persistencia, impedindo que campos ou precos de WEBSITE sejam usados em PLATAFORMA_WEB e vice-versa.
+
+### Limites tecnicos de Website
+
+Para manter quantidades e totais dentro de limites previsiveis, Website aceita no maximo 200 secoes, paginas, layouts unicos e itens de migracao; 100 formularios simples e 50 avancados. Esses limites evitam entradas que poderiam exceder os tipos `INTEGER` e `DECIMAL(14,2)` persistidos, sem alterar a tabela de precos ou a formula financeira.
 
 Em PLATAFORMA_WEB, o valor-base inclui a fundacao frontend/backend, persistencia, autenticacao por e-mail e senha, cinco telas, dois perfis e um idioma. O restante e detalhado por estrutura de contas, design, modulos funcionais, backoffice, dashboards, relatorios, autenticacao adicional, pagamentos, notificacoes, arquivos, auditoria, integracoes e migracao de dados. A data de lancamento nao pode estar antes do dia UTC atual. A implantacao da hospedagem e um item unico sem multiplicadores; hospedagem mensal e manutencao ficam separadas no total recorrente.
 

@@ -197,6 +197,32 @@ describe('contrato de entrada da precificacao de website', () => {
       targetLaunchDate: '2026-02-31'
     }).success).toBe(false);
   });
+
+  it('impõe limites técnicos para contagens persistidas', () => {
+    expect(websiteBudgetInputSchema.safeParse({
+      ...baseInput,
+      websiteCategory: 'INSTITUCIONAL',
+      sectionCount: 200,
+      pageCount: 200,
+      uniqueLayoutCount: 200,
+      contentResponsibility: 'MJM_MIGRATES_EXISTING',
+      contentMigrationCount: 200,
+      simpleFormCount: 100,
+      advancedFormCount: 50
+    }).success).toBe(true);
+
+    for (const [field, value] of Object.entries({
+      sectionCount: 201,
+      pageCount: 201,
+      uniqueLayoutCount: 201,
+      contentMigrationCount: 201,
+      simpleFormCount: 101,
+      advancedFormCount: 51
+    })) {
+      expect(websiteBudgetInputSchema.safeParse({ ...baseInput, [field]: value }).success)
+        .toBe(false);
+    }
+  });
 });
 
 describe('precificacao de website', () => {
@@ -337,5 +363,95 @@ describe('precificacao de website', () => {
       .toThrow('Configuracao de preco negativa: WEBSITE_BASE_LANDING_PAGE');
     expect(() => calculate({}, zeroMultiplier))
       .toThrow('Multiplicadores devem ser maiores que zero');
+  });
+
+  it('arredonda meio centavo por linha com ROUND_HALF_UP', () => {
+    const roundedConfigs = configs.map((configuration) => (
+      [
+        'WEBSITE_BASE_LANDING_PAGE',
+        'WEBSITE_DESIGN_CLIENT_PROVIDED',
+        'WEBSITE_SEO_TECHNICAL_BASELINE'
+      ].includes(configuration.code)
+        ? { ...configuration, value: new Decimal('0.005') }
+        : configuration
+    ));
+    const result = calculate({}, roundedConfigs);
+
+    expect(result.items.map((item) => item.unitPrice.toFixed(2))).toEqual([
+      '0.01', '0.01', '0.01'
+    ]);
+    expect(result.subtotal.toFixed(2)).toBe('0.03');
+    expect(result.finalTotal.toFixed(2)).toBe('0.03');
+  });
+
+  it('preserva os extremos de desconto sem alterar recorrencias', () => {
+    const withoutDiscount = calculate({ discountPercentage: 0 });
+    const fullDiscount = calculate({
+      discountPercentage: 100,
+      discountReason: 'Cortesia comercial aprovada',
+      hostingPlan: 'MJM_STANDARD',
+      maintenancePlan: 'ESSENTIAL'
+    });
+
+    expect(withoutDiscount.finalTotal.toFixed(2)).toBe('2500.00');
+    expect(fullDiscount.finalTotal.toFixed(2)).toBe('500.00');
+    expect(fullDiscount.monthlyRecurringTotal.toFixed(2)).toBe('500.00');
+  });
+
+  it('mantem o golden completo de Website com itens e totais estaveis', () => {
+    const result = calculate({
+      websiteCategory: 'INSTITUCIONAL',
+      sectionCount: 1,
+      pageCount: 7,
+      uniqueLayoutCount: 3,
+      languageCount: 2,
+      contentResponsibility: 'MJM_MIGRATES_EXISTING',
+      contentMigrationCount: 4,
+      designApproach: 'CUSTOM_DESIGN',
+      contentManagement: 'CUSTOM_ADMIN',
+      simpleFormCount: 2,
+      advancedFormCount: 1,
+      integrations: [
+        { name: 'HubSpot', complexity: 'STANDARD' },
+        { name: 'ERP do cliente', complexity: 'COMPLEX' }
+      ],
+      additionalModules: ['BLOG', 'SITE_SEARCH'],
+      seoLevel: 'CONTENT_STRATEGY',
+      domainService: 'NEW_REGISTRATION',
+      hostingPlan: 'MJM_MANAGED',
+      maintenancePlan: 'STANDARD',
+      complexityAdjustment: 'MODERATE',
+      complexityReason: 'Integracoes e painel administrativo personalizado',
+      discountPercentage: 10,
+      discountReason: 'Condicao comercial aprovada'
+    });
+
+    expect(result.items.map((item) => [item.code, item.quantity, item.recurring, item.displayOrder]))
+      .toEqual([
+        ['WEBSITE_BASE_INSTITUCIONAL', 1, false, 0],
+        ['WEBSITE_EXTRA_PAGE', 2, false, 1],
+        ['WEBSITE_UNIQUE_LAYOUT', 1, false, 2],
+        ['WEBSITE_DESIGN_CUSTOM', 1, false, 3],
+        ['WEBSITE_CONTENT_MIGRATION', 4, false, 4],
+        ['WEBSITE_EXTRA_LANGUAGE', 1, false, 5],
+        ['WEBSITE_CMS_CUSTOM', 1, false, 6],
+        ['WEBSITE_FORM_SIMPLE', 2, false, 7],
+        ['WEBSITE_FORM_ADVANCED', 1, false, 8],
+        ['WEBSITE_INTEGRATION_STANDARD', 1, false, 9],
+        ['WEBSITE_INTEGRATION_COMPLEX', 1, false, 10],
+        ['WEBSITE_MODULE_BLOG', 1, false, 11],
+        ['WEBSITE_MODULE_SITE_SEARCH', 1, false, 12],
+        ['WEBSITE_SEO_CONTENT_STRATEGY', 1, false, 13],
+        ['WEBSITE_DOMAIN_NEW_REGISTRATION', 1, false, 14],
+        ['WEBSITE_HOSTING_MJM_MANAGED_SETUP', 1, false, 15],
+        ['WEBSITE_HOSTING_MJM_MANAGED_MONTHLY', 1, true, 16],
+        ['WEBSITE_MAINTENANCE_STANDARD_MONTHLY', 1, true, 17]
+      ]);
+    expect(result.subtotal.toFixed(2)).toBe('17100.00');
+    expect(result.complexityMultiplier.toFixed(2)).toBe('1.20');
+    expect(result.urgencyMultiplier.toFixed(2)).toBe('1.00');
+    expect(result.discountPercentage.toFixed(2)).toBe('10.00');
+    expect(result.finalTotal.toFixed(2)).toBe('18388.00');
+    expect(result.monthlyRecurringTotal.toFixed(2)).toBe('1000.00');
   });
 });

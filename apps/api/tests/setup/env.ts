@@ -1,6 +1,12 @@
+import { config } from 'dotenv';
+import { resolve } from 'node:path';
+import { requireTestDatabaseUrl } from './test-database.js';
+
+config({ path: [resolve(process.cwd(), '.env'), resolve(process.cwd(), '../../.env')] });
+
 process.env.NODE_ENV = 'test';
 process.env.PORT = '3001';
-process.env.DATABASE_URL = 'postgresql://mjm:mjm_local_password@localhost:5434/mjm_orcamentos_test?schema=public';
+process.env.DATABASE_URL = requireTestDatabaseUrl(process.env);
 process.env.CORS_ORIGIN = 'http://localhost:5173';
 process.env.JWT_SECRET = 'test-secret-with-at-least-thirty-two-characters';
 process.env.JWT_EXPIRES_IN_SECONDS = '3600';

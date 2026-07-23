@@ -325,4 +325,102 @@ describe('precificacao de plataforma web', () => {
       referenceDate: new Date('invalid')
     })).toThrow('Data de referencia invalida');
   });
+
+  it('arredonda meio centavo por linha com ROUND_HALF_UP', () => {
+    const roundedConfigs = configs.map((configuration) => (
+      [
+        'WEB_PLATFORM_BASE_CLIENT_PORTAL',
+        'WEB_PLATFORM_ACCOUNT_SINGLE_ORGANIZATION',
+        'WEB_PLATFORM_DESIGN_CLIENT_PROVIDED',
+        'WEB_PLATFORM_MODULE_SIMPLE'
+      ].includes(configuration.code)
+        ? { ...configuration, value: new Decimal('0.005') }
+        : configuration
+    ));
+    const result = calculate({}, roundedConfigs);
+
+    expect(result.items.map((item) => item.unitPrice.toFixed(2))).toEqual([
+      '0.01', '0.01', '0.01', '0.01'
+    ]);
+    expect(result.subtotal.toFixed(2)).toBe('0.04');
+    expect(result.finalTotal.toFixed(2)).toBe('0.04');
+  });
+
+  it('preserva os extremos de desconto sem alterar recorrencias', () => {
+    const withoutDiscount = calculate({ discountPercentage: 0 });
+    const fullDiscount = calculate({
+      discountPercentage: 100,
+      discountReason: 'Cortesia comercial aprovada',
+      hostingPlan: 'MJM_STANDARD',
+      maintenancePlan: 'ESSENTIAL'
+    });
+
+    expect(withoutDiscount.finalTotal.toFixed(2)).toBe('7200.00');
+    expect(fullDiscount.finalTotal.toFixed(2)).toBe('800.00');
+    expect(fullDiscount.monthlyRecurringTotal.toFixed(2)).toBe('1000.00');
+  });
+
+  it('mantem o golden completo de Plataforma Web com itens e totais estaveis', () => {
+    const result = calculate({
+      platformCategory: 'SAAS',
+      accountStructure: 'MULTI_ORGANIZATION',
+      screenCount: 8,
+      userRoleCount: 4,
+      languageCount: 2,
+      designApproach: 'CUSTOM_DESIGN',
+      functionalModules: [
+        { name: 'Gestao de usuarios', complexity: 'SIMPLE' },
+        { name: 'Gestao de assinaturas', description: 'Ciclo de contratacao e renovacao', complexity: 'STANDARD' }
+      ],
+      adminBackoffice: 'STANDARD',
+      dashboardCount: 1,
+      reportCount: 2,
+      additionalAuthentication: ['MFA'],
+      paymentFeatures: ['SUBSCRIPTION'],
+      notificationChannels: ['IN_APP', 'EMAIL'],
+      fileHandling: 'BASIC_UPLOADS',
+      auditLevel: 'BASIC',
+      integrations: [{ name: 'CRM', complexity: 'STANDARD' }],
+      dataMigration: 'STRUCTURED_IMPORT',
+      dataMigrationSourceCount: 2,
+      hostingPlan: 'MJM_MANAGED',
+      maintenancePlan: 'STANDARD',
+      complexityAdjustment: 'MODERATE',
+      complexityReason: 'Operacao multi-organizacao com cobranca recorrente',
+      discountPercentage: 10,
+      discountReason: 'Condicao comercial aprovada'
+    });
+
+    expect(result.items.map((item) => [item.code, item.quantity, item.recurring, item.displayOrder]))
+      .toEqual([
+        ['WEB_PLATFORM_BASE_SAAS', 1, false, 0],
+        ['WEB_PLATFORM_ACCOUNT_MULTI_ORGANIZATION', 1, false, 1],
+        ['WEB_PLATFORM_DESIGN_CUSTOM', 1, false, 2],
+        ['WEB_PLATFORM_EXTRA_SCREEN_CUSTOM_DESIGN', 3, false, 3],
+        ['WEB_PLATFORM_EXTRA_USER_ROLE', 2, false, 4],
+        ['WEB_PLATFORM_EXTRA_LANGUAGE', 1, false, 5],
+        ['WEB_PLATFORM_MODULE_SIMPLE', 1, false, 6],
+        ['WEB_PLATFORM_MODULE_STANDARD', 1, false, 7],
+        ['WEB_PLATFORM_BACKOFFICE_STANDARD', 1, false, 8],
+        ['WEB_PLATFORM_DASHBOARD', 1, false, 9],
+        ['WEB_PLATFORM_REPORT', 2, false, 10],
+        ['WEB_PLATFORM_AUTH_MFA', 1, false, 11],
+        ['WEB_PLATFORM_PAYMENT_SUBSCRIPTION', 1, false, 12],
+        ['WEB_PLATFORM_NOTIFICATION_IN_APP', 1, false, 13],
+        ['WEB_PLATFORM_NOTIFICATION_EMAIL', 1, false, 14],
+        ['WEB_PLATFORM_FILE_BASIC_UPLOADS', 1, false, 15],
+        ['WEB_PLATFORM_AUDIT_BASIC', 1, false, 16],
+        ['WEB_PLATFORM_INTEGRATION_STANDARD', 1, false, 17],
+        ['WEB_PLATFORM_DATA_MIGRATION_STRUCTURED_IMPORT', 2, false, 18],
+        ['WEB_PLATFORM_HOSTING_MJM_MANAGED_SETUP', 1, false, 19],
+        ['WEB_PLATFORM_HOSTING_MJM_MANAGED_MONTHLY', 1, true, 20],
+        ['WEB_PLATFORM_MAINTENANCE_STANDARD_MONTHLY', 1, true, 21]
+      ]);
+    expect(result.subtotal.toFixed(2)).toBe('38000.00');
+    expect(result.complexityMultiplier.toFixed(2)).toBe('1.20');
+    expect(result.urgencyMultiplier.toFixed(2)).toBe('1.00');
+    expect(result.discountPercentage.toFixed(2)).toBe('10.00');
+    expect(result.finalTotal.toFixed(2)).toBe('40920.00');
+    expect(result.monthlyRecurringTotal.toFixed(2)).toBe('2000.00');
+  });
 });

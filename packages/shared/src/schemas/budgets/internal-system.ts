@@ -7,6 +7,7 @@ import {
   maintenancePlans,
   optionalReasonSchema
 } from './common.js';
+import { hasDuplicateNormalizedNames } from '../../normalization.js';
 
 export const internalSystemPermissionModels = [
   'STANDARD_ROLES',
@@ -39,27 +40,18 @@ const optionalDescriptionSchema = z.preprocess(
   z.string().trim().max(1_000).optional()
 );
 
-export const internalSystemScopedItemSchema = z.object({
+const internalSystemScopedItemSchema = z.object({
   name: z.string().trim().min(2).max(120),
   description: optionalDescriptionSchema,
   complexity: z.enum(integrationComplexities)
 }).strict();
-
-function normalizeScopedItemName(value: string): string {
-  return value
-    .trim()
-    .replace(/\s+/g, ' ')
-    .normalize('NFKD')
-    .replace(/\p{Mark}/gu, '')
-    .toLocaleLowerCase('pt-BR');
-}
 
 function hasUniqueValues(values: readonly string[]): boolean {
   return new Set(values).size === values.length;
 }
 
 function hasUniqueScopedItemNames(values: ReadonlyArray<{ name: string }>): boolean {
-  return hasUniqueValues(values.map((value) => normalizeScopedItemName(value.name)));
+  return !hasDuplicateNormalizedNames(values.map((value) => value.name));
 }
 
 export const internalSystemBudgetInputSchema = z.object({

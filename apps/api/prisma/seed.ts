@@ -263,73 +263,67 @@ async function main(): Promise<void> {
     type: argon2.argon2id
   });
 
-  await prisma.user.upsert({
-    where: { email: seedEnv.SEED_ADMIN_EMAIL },
-    update: {
-      name: seedEnv.SEED_ADMIN_NAME,
-      passwordHash,
-      role: UserRole.ADMIN,
-      active: true
-    },
-    create: {
-      name: seedEnv.SEED_ADMIN_NAME,
-      email: seedEnv.SEED_ADMIN_EMAIL,
-      passwordHash,
-      role: UserRole.ADMIN,
-      active: true
+  await prisma.$transaction(async (transaction) => {
+    await transaction.user.upsert({
+      where: { email: seedEnv.SEED_ADMIN_EMAIL },
+      update: {},
+      create: {
+        name: seedEnv.SEED_ADMIN_NAME,
+        email: seedEnv.SEED_ADMIN_EMAIL,
+        passwordHash,
+        role: UserRole.ADMIN,
+        active: true
+      }
+    });
+
+    await transaction.pricingConfig.updateMany({
+      where: { code: { in: [...legacyPricingCodes] } },
+      data: { active: false }
+    });
+
+    for (const [applicationType, code, name, category, configType, value] of pricingConfigs) {
+      await transaction.pricingConfig.upsert({
+        where: { code },
+        update: {
+          name,
+          applicationType,
+          category,
+          configType
+        },
+        create: {
+          code,
+          name,
+          applicationType,
+          category,
+          configType,
+          value,
+          active: true
+        }
+      });
+    }
+
+    for (const config of internalSystemPricingConfigs) {
+      await transaction.pricingConfig.upsert({
+        where: { code: config.code },
+        update: {
+          name: config.name,
+          applicationType: config.applicationType,
+          category: config.category,
+          configType: config.configType
+        },
+        create: {
+          code: config.code,
+          name: config.name,
+          applicationType: config.applicationType,
+          category: config.category,
+          configType: config.configType,
+          value: config.value,
+          active: true,
+          ...('metadata' in config ? { metadata: config.metadata } : {})
+        }
+      });
     }
   });
-
-  await prisma.pricingConfig.updateMany({
-    where: { code: { in: [...legacyPricingCodes] } },
-    data: { active: false }
-  });
-
-  for (const [applicationType, code, name, category, configType, value] of pricingConfigs) {
-    await prisma.pricingConfig.upsert({
-      where: { code },
-      update: {
-        name,
-        applicationType,
-        category,
-        configType,
-        active: true
-      },
-      create: {
-        code,
-        name,
-        applicationType,
-        category,
-        configType,
-        value,
-        active: true
-      }
-    });
-  }
-
-  for (const config of internalSystemPricingConfigs) {
-    await prisma.pricingConfig.upsert({
-      where: { code: config.code },
-      update: {
-        name: config.name,
-        applicationType: config.applicationType,
-        category: config.category,
-        configType: config.configType,
-        active: true,
-        ...('metadata' in config ? { metadata: config.metadata } : {})
-      },
-      create: {
-        code: config.code,
-        name: config.name,
-        applicationType: config.applicationType,
-        category: config.category,
-        configType: config.configType,
-        value: config.value,
-        active: true,
-        ...('metadata' in config ? { metadata: config.metadata } : {})
-      }
-    });
-  }
 
   console.info(`Administrador preparado: ${seedEnv.SEED_ADMIN_EMAIL}`);
   console.info(

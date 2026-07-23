@@ -1,17 +1,14 @@
 import type { ProjectStatus } from "@mjm/shared";
 import { projectStatuses } from "@mjm/shared";
-import axios from "axios";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { api } from "../../lib/api";
+import { apiErrorMessage } from "../../lib/api-error";
 import type { BudgetDto, ProjectSummary } from "../../lib/api-types";
 import { formatCurrency, formatDate, labelFromEnum } from "../../lib/format";
 import { statusBadgeClass, ui } from "../../lib/ui";
 
-interface ApiErrorBody {
-  error?: { message?: string };
-}
 
 export function ProjectDetailPage() {
   const { id } = useParams();
@@ -63,10 +60,7 @@ export function ProjectDetailPage() {
       setBudgetToDelete(null);
     } catch (caught) {
       setDeleteError(
-        axios.isAxiosError<ApiErrorBody>(caught)
-          ? (caught.response?.data.error?.message ??
-              "Não foi possível excluir o orçamento.")
-          : "Não foi possível excluir o orçamento.",
+        apiErrorMessage(caught, "Não foi possível excluir o orçamento."),
       );
     } finally {
       setDeletingBudget(false);

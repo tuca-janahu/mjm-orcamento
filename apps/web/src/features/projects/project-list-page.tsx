@@ -1,16 +1,13 @@
 import { projectStatuses, type ProjectStatus } from "@mjm/shared";
-import axios from "axios";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { api } from "../../lib/api";
+import { apiErrorMessage } from "../../lib/api-error";
 import type { ProjectSummary } from "../../lib/api-types";
 import { formatDate, labelFromEnum } from "../../lib/format";
 import { statusBadgeClass, ui } from "../../lib/ui";
 
-interface ApiErrorBody {
-  error?: { message?: string };
-}
 
 export function ProjectListPage() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
@@ -47,10 +44,7 @@ export function ProjectListPage() {
       setProjectToDelete(null);
     } catch (requestError) {
       setDeleteError(
-        axios.isAxiosError<ApiErrorBody>(requestError)
-          ? (requestError.response?.data.error?.message ??
-              "Não foi possível excluir o projeto.")
-          : "Não foi possível excluir o projeto.",
+        apiErrorMessage(requestError, "Não foi possível excluir o projeto."),
       );
     } finally {
       setDeleting(false);
